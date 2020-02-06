@@ -1,0 +1,8 @@
+asyncqt
+matplotlib
+numpy
+pandas
+PySide2
+pytest
+pytest-qt
+pyvisa-py
