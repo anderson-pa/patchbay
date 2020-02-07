@@ -2,7 +2,9 @@ asyncqt
 matplotlib
 numpy
 pandas
+pint
 PySide2
 pytest
 pytest-qt
+pyvisa
 pyvisa-py
