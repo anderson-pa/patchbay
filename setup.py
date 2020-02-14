@@ -5,11 +5,11 @@ with open('README.md', 'r') as fh:
 
 setuptools.setup(
     name='patchbay',
-    version='0.0.1',
+    version='0.0.2',
     author='Phillip Anderson',
     author_email='python.patchbay@gmail.com',
     description='High level automation and device communication.',
-    license='Fair Source 0.9 (10)',
+    license='Fair Source 0.9 [10]',
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/anderson-pa/patchbay',
