@@ -3,20 +3,21 @@ class Node:
 
     Could represent an instrument, algorithm, or collection of nodes.
     """
+
     def __init__(self, channel_specs=None):
         """Initialize a new Node instance.
 
         :param channel_specs: dict of channel_id keys with attribute name lists
         """
         if channel_specs:
-            self._channel_specs = channel_specs
+            self.channel_specs = channel_specs
         else:
-            self._channel_specs = {}
+            self.channel_specs = {}
 
     @property
     def channel_ids(self):
         """List the available channel IDs. Read-only property"""
-        return list(self._channel_specs.keys())
+        return list(self.channel_specs.keys())
 
     def add_channel(self, channel_id, attributes, *, allow_overwrite=False):
         """Add a channel to the node.
@@ -28,9 +29,9 @@ class Node:
         :param attributes: iterable of attribute names for the new channel
         :param allow_overwrite: if True, allow overwriting channels
         """
-        if not allow_overwrite and (channel_id in self._channel_specs):
+        if not allow_overwrite and (channel_id in self.channel_specs):
             raise ValueError('Channel ID already exists.')
-        self._channel_specs[channel_id] = attributes
+        self.channel_specs[channel_id] = attributes
 
     def get_channel(self, channel_id):
         """Get a Channel instance for the channel belonging to this node.
@@ -40,7 +41,7 @@ class Node:
         :param channel_id: ID for the desired channel
         :return: Channel
         """
-        if channel_id not in self._channel_specs:
+        if channel_id not in self.channel_specs:
             raise KeyError('Channel ID already exists.')
         return Channel(self, channel_id)
 
@@ -51,7 +52,7 @@ class Node:
         :param attr_name: name of the attribute to query
         :return: value of the channel's attribute
         """
-        if attr_name not in self._channel_specs[channel_id]:
+        if attr_name not in self.channel_specs[channel_id]:
             raise AttributeError(f"Channel has no attribute '{attr_name}'")
 
     def describe_channel(self, channel_id, attr_names=None):
@@ -62,12 +63,18 @@ class Node:
 
         :param channel_id: ID of the channel to query
         :param attr_names: iterable of attribute names to query
-        :return: dict of attribute names: values
+        :return: single value or dict of attribute names: values
         """
-        if attr_names is None:
-            attr_names = self._channel_specs[channel_id]
-        return {attr: self.get_channel_attribute(channel_id, attr)
-                for attr in attr_names}
+        if not attr_names:
+            num_requested = 0
+            attr_names = self.channel_specs[channel_id]
+        else:
+            num_requested = len(attr_names)
+        results = {attr: self.get_channel_attribute(channel_id, attr)
+                   for attr in attr_names}
+        if num_requested == 1:
+            results = results[attr_names[0]]
+        return results
 
     def set_channel_attribute(self, channel_id, attr_name, value):
         """Set the value of a single channel attribute by name.
@@ -76,7 +83,7 @@ class Node:
         :param attr_name: name of the attribute to set
         :param value: new value for the attribute
         """
-        if attr_name not in self._channel_specs[channel_id]:
+        if attr_name not in self.channel_specs[channel_id]:
             raise AttributeError(f"Channel has no attribute '{attr_name}'")
 
     def configure_channel(self, channel_id, **kwargs):
@@ -85,7 +92,7 @@ class Node:
         :param channel_id: ID of the channel to configure
         :param kwargs: attribute names and their values
         """
-        if not all([x in self._channel_specs[channel_id]
+        if not all([x in self.channel_specs[channel_id]
                     for x in kwargs.keys()]):
             raise AttributeError
         for attr_name, value in kwargs.items():
@@ -100,7 +107,7 @@ class Instrument(Node):
 class Channel:
     """Channel represents a single input or output from a node.
 
-    Channels are just a convenience construct and don't really do any work.
+    Channels are just a convenience construct and do not really do any work.
     They should just pass commands up to the node. Should be associated with
     a specific node.
     """
@@ -109,13 +116,13 @@ class Channel:
     def __init__(self, node, ch_id):
         self._node = node
         self._ch_id = ch_id
-        self.attributes = self._node._channel_specs[ch_id]
+        self.attributes = self._node.channel_specs[ch_id]
 
     def __str__(self):
-        return f'{self._node}:{self._ch_id}'
+        return f'Channel<{self._node}:{self._ch_id}>'
 
     def __repr__(self):
-        return f'{self._node}:{self._ch_id}'
+        return f'Channel<{repr(self._node)}:{self._ch_id}>'
 
     def __getattr__(self, attr_name):
         if attr_name in self.attributes:
@@ -129,10 +136,10 @@ class Channel:
         else:
             super().__setattr__(attr_name, value)
 
+    def get(self, *args):
+        """Query multiple attributes of the channel."""
+        return self._node.describe_channel(self._ch_id, args)
+
     def set(self, **kwargs):
         """Set multiple attributes of the channel."""
-        pass
-
-    def get(self):
-        """Query multiple attributes of the channel."""
-        pass
+        self._node.configure_channel(self._ch_id, **kwargs)
