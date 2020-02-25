@@ -36,10 +36,11 @@ class MockNode(Node):
     def __repr__(self):
         return 'MockNodeRepr'
 
-    def add_channel(self, channel_id, attributes, *, allow_overwrite=False):
-        super().add_channel(channel_id, attributes,
-                            allow_overwrite=allow_overwrite)
-        self.data[channel_id] = {a: None for a in attributes}
+    def add_channels(self, channel_specs, *, allow_overwrite=False):
+        super().add_channels(channel_specs, allow_overwrite=allow_overwrite)
+
+        for channel_id, attributes in channel_specs.items():
+            self.data[channel_id] = {a: None for a in attributes}
 
     @count
     def get_channel_attribute(self, channel_id, attr_name):

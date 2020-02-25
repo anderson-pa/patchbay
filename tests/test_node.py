@@ -21,26 +21,49 @@ def test_channel_ids(node):
     assert {'b', 0, (1, 'c')} == set(node.channel_ids)
 
 
-def test_add_channel(blank_node):
+def test_add_channels(blank_node):
     """Check ability to add channels to a node."""
-    blank_node.add_channel(0, ['attr1'])  # add channel 0
+    blank_node.add_channels({0: ['attr1']})  # add single channel 0
 
     assert 0 in blank_node.channel_ids  # the channel id is found
-    assert ['attr1'] == blank_node.channel_specs[0]  # the attr list matches
+    assert {'attr1'} == blank_node.channel_specs[0]  # the attr list matches
+
+    blank_node.add_channels({(0, 'hello'): ['attr1', 'attr2', 'attr3'],
+                             'ch_D': ['attrA', 'attrB']})
+    assert 0 in blank_node.channel_ids  # this channel should still exist
+
+    assert (0, 'hello') in blank_node.channel_ids  # new channel added
+    assert {'attr1', 'attr2', 'attr3'} == blank_node.channel_specs[(0, 'hello')]
+
+    assert 'ch_D' in blank_node.channel_ids
+    assert {'attrA', 'attrB'} == blank_node.channel_specs['ch_D']
 
 
-def test_add_channel_duplicate(blank_node):
+def test_add_channels_duplicate(blank_node):
     """Check for appropriate errors when adding duplicate channel IDs"""
-    blank_node.add_channel('a', [])
-    assert [] == blank_node.channel_specs['a']
+    blank_node.add_channels({'a': []})
+    assert set() == blank_node.channel_specs['a']
 
+    # try adding a single channel that clashes
     with pytest.raises(ValueError):  # overwriting throws an error
-        blank_node.add_channel('a', [])
-    assert [] == blank_node.channel_specs['a']  # no change to channel
+        blank_node.add_channels({'a': ['attr1']})
+    assert set() == blank_node.channel_specs['a']  # no change to channel
 
     #  overwriting is allowed if the flag is set
-    blank_node.add_channel('a', ['attr1'], allow_overwrite=True)
-    assert ['attr1'] == blank_node.channel_specs['a']
+    blank_node.add_channels({'a': ['attrA']}, allow_overwrite=True)
+    assert {'attrA'} == blank_node.channel_specs['a']
+
+    #  try adding multiple channels, one of which clashes
+    with pytest.raises(ValueError):  # overwriting throws an error
+        blank_node.add_channels({'b': ['attrB'], 'a': ['attr1']})
+    assert {'attrA'} == blank_node.channel_specs['a']  # no change to channel
+    assert 'b' not in blank_node.channel_specs  # channel is not added
+
+    #  overwriting is allowed if the flag is set
+    blank_node.add_channels({'a': ['attr1'], 'b': ['attrB']},
+                            allow_overwrite=True)
+    assert {'attr1'} == blank_node.channel_specs['a']  # channel is updated
+    assert {'attrB'} == blank_node.channel_specs['b']  # channel is added
 
 
 def test_get_channel(node):

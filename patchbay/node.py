@@ -19,19 +19,27 @@ class Node:
         """List the available channel IDs. Read-only property"""
         return list(self.channel_specs.keys())
 
-    def add_channel(self, channel_id, attributes, *, allow_overwrite=False):
-        """Add a channel to the node.
+    def add_channels(self, channel_specs, *, allow_overwrite=False):
+        """Add one or more channels to the node.
 
         If `allow_overwrite` is True, channels can be overwritten. Otherwise,
-        a ValueError is thrown if `ch_id` matches an existing channel ID.
+        a ValueError is thrown if any channel ID already exists. Will not add
+        any channels unless all can be added.
 
-        :param channel_id: ID for the new channel.
-        :param attributes: iterable of attribute names for the new channel
+        Attribute names should be an iterable (e.g. a list or set) of names.
+        Individual names should follow the rules for standard Python
+        identifiers.
+
+        :param channel_specs: dict of `IDs: attributes names` for new channels.
         :param allow_overwrite: if True, allow overwriting channels
         """
-        if not allow_overwrite and (channel_id in self.channel_specs):
-            raise ValueError('Channel ID already exists.')
-        self.channel_specs[channel_id] = attributes
+        if not allow_overwrite:
+            for channel_id in channel_specs:
+                if channel_id in self.channel_specs:
+                    raise ValueError(f'Channel ID already exists: {channel_id}')
+
+        self.channel_specs.update({ch_id: set(attrs)
+                                   for ch_id, attrs in channel_specs.items()})
 
     def get_channel(self, channel_id):
         """Get a Channel instance for the channel belonging to this node.
