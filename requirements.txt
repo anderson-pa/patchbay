@@ -3,6 +3,7 @@ matplotlib
 numpy
 pandas
 pint
+pyserial
 PySide2
 pytest
 pytest-qt
