@@ -27,6 +27,13 @@ class DeviceManager:
                 if descriptor.make == make and descriptor.model == model:
                     return manager.open_device(descriptor.address)
 
+    def open_ethernet_device(self, ip_address):
+        for manager in self.managers:
+            if manager.pkg_name == 'pyvisa':
+                address = f'TCPIP::{ip_address}::INSTR'
+                return manager.open_device(address)
+        return None  # if none of the managers are for pyvisa
+
     @staticmethod
     def find_package_managers(pkg_names):
         managers = []

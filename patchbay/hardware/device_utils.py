@@ -28,7 +28,8 @@ DeviceDescriptor = namedtuple('DeviceDescriptor',
 
 
 class ResourceManager:
-    def __init__(self):
+    def __init__(self, pkg_name):
+        self.pkg_name = pkg_name
         self.devices = []
 
     def refresh(self):

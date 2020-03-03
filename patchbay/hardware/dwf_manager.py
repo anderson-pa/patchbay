@@ -5,4 +5,5 @@ from patchbay.hardware.device_utils import (DeviceDescriptor, ResourceManager,
 
 
 class DwfManager(ResourceManager):
-    pass
+    def __init__(self):
+        super().__init__('dwf')

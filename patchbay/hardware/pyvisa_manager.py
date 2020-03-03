@@ -6,7 +6,7 @@ from patchbay.hardware.device_utils import (DeviceDescriptor, ResourceManager,
 
 class PyvisaManager(ResourceManager):
     def __init__(self, backend='@py'):
-        super().__init__()
+        super().__init__('pyvisa')
         self.rm = pyvisa.ResourceManager(backend)
 
     def refresh(self):
