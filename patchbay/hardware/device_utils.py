@@ -19,7 +19,7 @@ def get_device_handler(make, model):
         return None
     else:
         handler_module = import_module(f'.{make_nice}{series}',
-                                       f'patchbay.hardware.{make_nice}')
+                                       f'patchbay.hardware.{make_nice.lower()}')
         return getattr(handler_module, f'{make_nice}{series}{device_type}')
 
 
