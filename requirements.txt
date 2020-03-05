@@ -1,5 +1,6 @@
 asyncqt
 matplotlib
+mock
 numpy
 pandas
 pint

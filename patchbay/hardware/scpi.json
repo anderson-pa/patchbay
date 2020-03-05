@@ -1,0 +1,8 @@
+[{"name": "Carrier",
+  "description":  "Signal generator carrier signal."},
+  [
+    ["enabled", "source", "bool", null, {}],
+    ["frequency", "source:frequency", "qty", "Hz", {"query_keywords": ["min", "max"], "write_keywords": ["min", "max", "default"]}],
+    ["amplitude", "source:voltage", "qty", "V", {"query_keywords": ["min", "max"], "write_keywords": ["min", "max", "default"]}]
+  ]
+]
