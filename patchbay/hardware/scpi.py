@@ -1,5 +1,6 @@
 import builtins
 from collections import namedtuple
+from functools import lru_cache
 
 from patchbay import ureg
 
@@ -55,6 +56,28 @@ def scpi_num(dtype):
                              lambda v: v)
 
 
+@lru_cache()  # don't create multiple functions for the same conversion
+def qty_write_converter(unit_str):
+    """Get a converter function for scpi_qty.
+
+    Return a function that converts an input value to the given base unit.
+    The returned function will raises a ValueError if the value is not a pint
+    quantity.
+
+    :param unit_str: string representation of the unit for this converter
+    :return: function for qty write conversions.
+    """
+
+    def write_converter(value):
+        try:
+            base_unit_value = value.to(ureg(unit_str))
+        except AttributeError:
+            raise ValueError(f'Value has no units.')
+        return base_unit_value.magnitude
+
+    return write_converter
+
+
 def scpi_qty(unit_str):
     """Get a SCPI converter for quantities.
 
@@ -74,21 +97,12 @@ def scpi_qty(unit_str):
     :param unit_str: string representation of the unit for this command
     :return: ScpiTypeConverter for quantities
     """
-    def qty_to_scpi(unit_str):
-        def write_converter(value):
-            try:
-                base_unit_value = value.to(ureg(unit_str))
-            except AttributeError:
-                raise ValueError(f'Value has no units.')
-            return base_unit_value.magnitude
-        return write_converter
-
     if unit_str == '%':
         converter = ScpiTypeConverter(lambda v: float(v) / 100,
                                       lambda v: v * 100)
     else:
         converter = ScpiTypeConverter(lambda v: float(v) * ureg(unit_str),
-                                      qty_to_scpi(unit_str))
+                                      qty_write_converter(unit_str))
     return converter
 
 
