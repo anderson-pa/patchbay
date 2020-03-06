@@ -129,6 +129,13 @@ def scpi_choice(choices):
 
 
 def scpi_subsystem_from_json(json, base_cls=None, *args):
+    """Build or add on to a SCPI Subsystem class from a json description.
+
+    :param json: json string describing the SCPI subsystem
+    :param base_cls: class to add commands to. If `None`, a new class is made.
+    :param args: used as formatters for `scpi_base_cmd`s
+    :return: updated class object
+    """
     meta, cmd_list = json
 
     if base_cls is None:
@@ -139,17 +146,41 @@ def scpi_subsystem_from_json(json, base_cls=None, *args):
         scpi_base_cmd = scpi_base_cmd.format(*args)
         scpi_type = globals()[f'scpi_{scpi_type}'](scpi_type_arg)
         add_scpi_cmd(base_cls, name, scpi_base_cmd, scpi_type, **scpi_kwargs)
+
     return base_cls
 
 
 def add_scpi_cmd(base_cls, name, scpi_base_cmd, converter, *,
                  can_query=True, can_write=True,
                  query_keywords=None, write_keywords=None):
-    if query_keywords is None:
-        query_keywords = []
-    if write_keywords is None:
-        write_keywords = []
+    """Add parameters to a class for SCPI commands.
 
+    Add a property named `name` to the class that calls the corresponding
+    SCPI command. Values are converted as appropriate to translate from
+    Python to the device:
+
+        c.name -> query_converter(query('scpi_base_cmd?'))
+        c.name = value -> write('scpi_base_cmd write(converter(value)')
+
+    If keywords are included, additional properties are added:
+        c.name_qkeyword -> query_converter(query('scpi_base_cmd? qkeyword'))
+        c.name_to_wkeyword -> write('scpi_base_cmd wkeyword')
+
+    This allows for commands that have e.g., min, max, or default values.
+
+    The different converters allow for more customization, including boolean
+    conversions, enforcing units on quantities, and setting a list of choices.
+
+    :param base_cls: class to add on to
+    :param name: name of the attribute or method
+    :param scpi_base_cmd: string for the SCPI command
+    :param converter: ScpiTypeConverter to translate between python and device
+    :param can_query: if True, a query property is added
+    :param can_write: if True, a write property is added
+    :param query_keywords: additional SCPI query keywords for this command
+    :param write_keywords: additional SCPI write keywords for this command
+    """
+    # set the property
     prop_get, prop_set = None, None
     if can_query:
         cmd = _build_command(scpi_base_cmd)
@@ -160,11 +191,16 @@ def add_scpi_cmd(base_cls, name, scpi_base_cmd, converter, *,
 
     setattr(base_cls, name, property(prop_get, prop_set))
 
+    # set additional properties for the keywords
+    if query_keywords is None:
+        query_keywords = []
     for keyword in query_keywords:
         cmd = _build_command(scpi_base_cmd, keyword)
         setattr(base_cls, f'{name}_{keyword}',
                 property(_query_func(cmd, converter.query)))
 
+    if write_keywords is None:
+        write_keywords = []
     for keyword in write_keywords:
         cmd = _build_command(scpi_base_cmd, keyword, is_query=False)
         setattr(base_cls, f'{name}_to_{keyword}',
@@ -172,12 +208,25 @@ def add_scpi_cmd(base_cls, name, scpi_base_cmd, converter, *,
 
 
 def get_blank_scpi_subsystem(cls_name, cls_description=None):
+    """Create a new, blank class to build upon.
+
+    :param cls_name: name of the class
+    :param cls_description: docstring description
+    :return: class
+    """
     base_cls = type(cls_name, (object,), {})
     base_cls.__doc__ = cls_description
     return base_cls
 
 
 def _build_command(base_cmd, post=None, *, is_query=True):
+    """Build a SCPI command.
+
+    :param base_cmd: the root SCPI command
+    :param post: keyword that comes after the command, or None
+    :param is_query: if True, format the command as a query
+    :return: string command
+    """
     q = '?' if is_query else ''
     command = base_cmd + q
 
@@ -190,18 +239,30 @@ def _build_command(base_cmd, post=None, *, is_query=True):
 
 
 def _query_func(command, converter):
-    def query(self):
+    """Get a query function that calls the given SCPI command with conversion.
+
+    :param command: string SCPI command to query
+    :param converter: converter to use for translation
+    :return: SCPI query function
+    """
+    def query_func(self):
         return converter(self._parent.device.query(command))
 
-    return query
+    return query_func
 
 
 def _write_func(command, converter):
+    """Get a write function that calls the given SCPI command with conversion.
+
+    :param command: string SCPI command to write
+    :param converter: converter to use for translation
+    :return: SCPI write function
+    """
     if '{}' in command:
-        def write(self, value):
+        def write_func(self, value):
             value = converter(value)
             self._parent.device.write(command.format(value))
     else:
-        def write(self):
+        def write_func(self):
             self._parent.device.write(command)
-    return write
+    return write_func
