@@ -182,14 +182,17 @@ def add_scpi_cmd(base_cls, name, scpi_base_cmd, converter, *,
     """
     # set the property
     prop_get, prop_set = None, None
-    if can_query:
-        cmd = _build_command(scpi_base_cmd)
-        prop_get = _query_func(cmd, converter.query)
-    if can_write:
-        cmd = _build_command(scpi_base_cmd, is_query=False)
-        prop_set = _write_func(cmd, converter.write)
+    if converter is None or not any(converter):
+        setattr(base_cls, name, _write_func(scpi_base_cmd, None))
+    else:
+        if can_query and converter.query is not None:
+            cmd = _build_command(scpi_base_cmd)
+            prop_get = _query_func(cmd, converter.query)
+        if can_write and converter.write is not None:
+            cmd = _build_command(scpi_base_cmd, is_query=False)
+            prop_set = _write_func(cmd, converter.write)
 
-    setattr(base_cls, name, property(prop_get, prop_set))
+        setattr(base_cls, name, property(prop_get, prop_set))
 
     # set additional properties for the keywords
     if query_keywords is None:
