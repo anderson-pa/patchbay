@@ -1,4 +1,6 @@
 import builtins
+import json
+import weakref
 from collections import namedtuple
 from functools import lru_cache
 
@@ -128,18 +130,29 @@ def scpi_choice(choices):
 # converters for strings (needed?), binary (e.g. curve)?
 
 
-def scpi_subsystem_from_json(json, base_cls=None, *args):
+def scpi_subsystems_from_specs(channel_specs):
+    sub_systems = {}
+    for channel_id, json_file in channel_specs.items():
+        with open(json_file, 'r') as fp:
+            js = json.load(fp)
+        if isinstance(channel_id, tuple):
+            scpi_sub = scpi_subsystem_from_json(js, channel_id[0])
+        else:
+            scpi_sub = scpi_subsystem_from_json(js)
+        sub_systems[channel_id] = scpi_sub
+    return sub_systems
+
+
+def scpi_subsystem_from_json(json_str, *args):
     """Build or add on to a SCPI Subsystem class from a json description.
 
-    :param json: json string describing the SCPI subsystem
+    :param json_str: json string describing the SCPI subsystem
     :param base_cls: class to add commands to. If `None`, a new class is made.
     :param args: used as formatters for `scpi_base_cmd`s
     :return: updated class object
     """
-    meta, cmd_list = json
-
-    if base_cls is None:
-        base_cls = get_blank_scpi_subsystem(meta['name'], meta['description'])
+    meta, cmd_list = json_str
+    base_cls = get_blank_scpi_subsystem(meta['name'], meta['description'])
 
     for cmd in cmd_list:
         name, scpi_base_cmd, scpi_type, scpi_type_arg, scpi_kwargs = cmd
@@ -148,6 +161,18 @@ def scpi_subsystem_from_json(json, base_cls=None, *args):
         add_scpi_cmd(base_cls, name, scpi_base_cmd, scpi_type, **scpi_kwargs)
 
     return base_cls
+
+
+def partial_format(st, *args):
+    """Might use this to partially format base cmds"""
+    try:
+        return st.format(*args)
+    except IndexError:
+        return st
+    except KeyError:
+        for arg in args:
+            st = st.replace(f'{{}}', str(arg), 1)
+        return st
 
 
 def add_scpi_cmd(base_cls, name, scpi_base_cmd, converter, *,
@@ -180,11 +205,22 @@ def add_scpi_cmd(base_cls, name, scpi_base_cmd, converter, *,
     :param query_keywords: additional SCPI query keywords for this command
     :param write_keywords: additional SCPI write keywords for this command
     """
-    # set the property
-    prop_get, prop_set = None, None
-    if converter is None or not any(converter):
-        setattr(base_cls, name, _write_func(scpi_base_cmd, None))
+    if converter is None:
+        converter = ScpiTypeConverter(None, None)
+
+    # set the property or function
+    if '{}' in scpi_base_cmd or not any(converter):
+        # write a function if unfilled {} in base_cmd or no converters
+        if can_query and converter.query is not None:
+            setattr(base_cls, 'get_' + name,
+                    _query_func(scpi_base_cmd, converter.query))
+        if can_write:
+            w_prefix = 'set_' if converter.write is not None else ''
+            setattr(base_cls, w_prefix + name,
+                    _write_func(scpi_base_cmd, converter.write))
     else:
+        # write a property
+        prop_get, prop_set = None, None
         if can_query and converter.query is not None:
             cmd = _build_command(scpi_base_cmd)
             prop_get = _query_func(cmd, converter.query)
@@ -206,8 +242,7 @@ def add_scpi_cmd(base_cls, name, scpi_base_cmd, converter, *,
         write_keywords = []
     for keyword in write_keywords:
         cmd = _build_command(scpi_base_cmd, keyword, is_query=False)
-        setattr(base_cls, f'{name}_to_{keyword}',
-                _write_func(cmd, converter.write))
+        setattr(base_cls, f'{name}_to_{keyword}', _write_func(cmd, None))
 
 
 def get_blank_scpi_subsystem(cls_name, cls_description=None):
@@ -217,7 +252,12 @@ def get_blank_scpi_subsystem(cls_name, cls_description=None):
     :param cls_description: docstring description
     :return: class
     """
+
+    def __init__(self, parent):
+        self._parent = weakref.ref(parent)
+
     base_cls = type(cls_name, (object,), {})
+    base_cls.__init__ = __init__
     base_cls.__doc__ = cls_description
     return base_cls
 
@@ -248,8 +288,13 @@ def _query_func(command, converter):
     :param converter: converter to use for translation
     :return: SCPI query function
     """
-    def query_func(self):
-        return converter(self._parent.device.query(command))
+
+    if '{}' in command:
+        def query_func(self, *args):
+            return converter(self._parent().device.query(command.format(*args)))
+    else:
+        def query_func(self):
+            return converter(self._parent().device.query(command))
 
     return query_func
 
@@ -262,10 +307,14 @@ def _write_func(command, converter):
     :return: SCPI write function
     """
     if '{}' in command:
-        def write_func(self, value):
-            value = converter(value)
-            self._parent.device.write(command.format(value))
+        if converter is None:
+            def write_func(self, *args):
+                self._parent().device.write(command.format(*args))
+        else:
+            def write_func(self, *args):
+                value = converter(args[-1])
+                self._parent().device.write(command.format(*args[:-1], value))
     else:
         def write_func(self):
-            self._parent.device.write(command)
+            self._parent().device.write(command)
     return write_func
