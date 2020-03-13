@@ -1,11 +1,22 @@
 [
   {
-    "name": "Carrier",
-    "description":  "Signal generator carrier signal."
-  },
-  [
-    ["enabled", "source{}", "bool", null, {}],
-    ["frequency", "source{}:frequency", "qty", "Hz", {"query_keywords": ["min", "max"], "write_keywords": ["min", "max", "default"]}],
-    ["amplitude", "source{}:voltage", "qty", "V", {"query_keywords": ["min", "max"], "write_keywords": ["min", "max", "default"]}]
-  ]
+    "name": "source",
+    "description":  "Signal generator carrier signal.",
+    "indexed": true,
+    "commands": [
+      ["enabled", "source{source}", "bool", null, {}],
+      ["shape", "source{source}:function:shape", "choice",
+        {"sinusoid": "SIN", "square": "SQU", "triangle": "TRI", "ramp": "RAMP", "noise": "NOIS", "user": "USER"},
+        {}],
+      ["frequency", "source{source}:frequency", "qty", "Hz",
+        {"query_keywords": ["min", "max"], "write_keywords": ["min", "max", "default"]}],
+      ["amplitude", "source{source}:voltage", "qty", "V",
+        {"query_keywords": ["min", "max"], "write_keywords": ["min", "max", "default"]}],
+      ["offset", "source{source}:voltage:offset", "qty", "V",
+        {"query_keywords": ["min", "max"], "write_keywords": ["min", "max"]}],
+      ["amplitude_unit", "source{source}:voltage:unit", "choice",
+        {"Vpp": "VPP", "Vrms": "VRMS", "dBm": "DBM"},
+        {"write_keywords": ["default"]}]
+      ]
+  }
 ]

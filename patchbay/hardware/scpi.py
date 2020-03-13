@@ -151,10 +151,10 @@ def scpi_subsystem_from_json(json_str, *args):
     :param args: used as formatters for `scpi_base_cmd`s
     :return: updated class object
     """
-    meta, cmd_list = json_str
+    meta = json_str[0]
     base_cls = get_blank_scpi_subsystem(meta['name'], meta['description'])
 
-    for cmd in cmd_list:
+    for cmd in meta['commands']:
         name, scpi_base_cmd, scpi_type, scpi_type_arg, scpi_kwargs = cmd
         scpi_base_cmd = scpi_base_cmd.format(*args)
         scpi_type = globals()[f'scpi_{scpi_type}'](scpi_type_arg)
@@ -209,7 +209,7 @@ def add_scpi_cmd(base_cls, name, scpi_base_cmd, converter, *,
         converter = ScpiTypeConverter(None, None)
 
     # set the property or function
-    if '{}' in scpi_base_cmd or not any(converter):
+    if '{' in scpi_base_cmd or not any(converter):
         # write a function if unfilled {} in base_cmd or no converters
         if can_query and converter.query is not None:
             setattr(base_cls, 'get_' + name,
@@ -255,6 +255,7 @@ def get_blank_scpi_subsystem(cls_name, cls_description=None):
 
     def __init__(self, parent):
         self._parent = weakref.ref(parent)
+        self.keys = {}
 
     base_cls = type(cls_name, (object,), {})
     base_cls.__init__ = __init__
@@ -276,7 +277,7 @@ def _build_command(base_cmd, post=None, *, is_query=True):
     if post:
         command += ' ' + post
     elif not is_query:
-        command += ' {}'
+        command += ' {value}'
 
     return command
 
@@ -289,7 +290,7 @@ def _query_func(command, converter):
     :return: SCPI query function
     """
 
-    if '{}' in command:
+    if '{' in command:
         def query_func(self, *args):
             return converter(self._parent().device.query(command.format(*args)))
     else:
@@ -306,14 +307,15 @@ def _write_func(command, converter):
     :param converter: converter to use for translation
     :return: SCPI write function
     """
-    if '{}' in command:
+    if '{' in command:
         if converter is None:
-            def write_func(self, *args):
-                self._parent().device.write(command.format(*args))
+            def write_func(self):
+                self._parent().device.write(command.format(**self.keys))
         else:
-            def write_func(self, *args):
-                value = converter(args[-1])
-                self._parent().device.write(command.format(*args[:-1], value))
+            def write_func(self, value):
+                value = converter(value)
+                self._parent().device.write(command.format(**self.keys,
+                                                           value=value))
     else:
         def write_func(self):
             self._parent().device.write(command)

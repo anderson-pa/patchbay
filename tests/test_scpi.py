@@ -26,13 +26,13 @@ def test_property_creation(cmd_input, cmd_kwds, expected):
 
 
 @pytest.mark.parametrize('cmd_input, cmd_kwds, expected',
-                         [(('noarg', 'cmd{}', None), {}, {'noarg'}),
-                          (('normal', 'cmd{}', scpi.scpi_bool()), {},
+                         [(('noarg', 'cmd{ch}', None), {}, {'noarg'}),
+                          (('normal', 'cmd{ch}', scpi.scpi_bool()), {},
                            {'get_normal', 'set_normal'}),
-                          (('wkeywds', 'cmd{}', scpi.scpi_bool()),
+                          (('wkeywds', 'cmd{ch}', scpi.scpi_bool()),
                            {'write_keywords': ['min']},
                            {'get_wkeywds', 'set_wkeywds', 'wkeywds_to_min'}),
-                          (('qkeywds', 'cmd{}', scpi.scpi_num('int')),
+                          (('qkeywds', 'cmd{ch}', scpi.scpi_num('int')),
                            {'query_keywords': ['max', 'default']},
                            {'get_qkeywds', 'set_qkeywds', 'qkeywds_max',
                             'qkeywds_default'})
@@ -44,6 +44,20 @@ def test_property_creation_with_blanks(cmd_input, cmd_kwds, expected):
 
     scpi.add_scpi_cmd(subsys, *cmd_input, **cmd_kwds)
     assert expected == set(s.__dir__()).difference(d)
+
+
+def test_calling_with_extra_fields():
+    subsys = scpi.get_blank_scpi_subsystem('Test')
+    p = Mock()
+    s = subsys(p)
+
+    scpi.add_scpi_cmd(subsys, 'noarg', 'cmd:ch{ch}', None)
+    with pytest.raises(KeyError):
+        s.noarg()
+
+    s.keys['ch'] = 1
+    s.noarg()
+    assert 'cmd:ch1' == p.device.write.call_args.args[0]
 
 
 def test_error_converter():
