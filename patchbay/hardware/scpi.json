@@ -1,8 +1,5 @@
-[
+{"source":
   {
-    "name": "source",
-    "description":  "Signal generator carrier signal.",
-    "indexed": true,
     "commands": [
       ["enabled", "source{source}", "bool", null, {}],
       ["shape", "source{source}:function:shape", "choice",
@@ -19,4 +16,4 @@
         {"write_keywords": ["default"]}]
       ]
   }
-]
+}

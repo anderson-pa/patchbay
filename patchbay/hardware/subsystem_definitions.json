@@ -1,0 +1,39 @@
+{
+  "source":
+  {
+    "name": "source",
+    "description":  "Signal generator carrier signal.",
+    "indexed": true,
+    "commands": [
+      ["enabled", "bool", null, {}],
+      ["shape", "choice", "sinusoid, square, triangle, ramp, noise, user", {}],
+      ["frequency", "qty", "Hz",
+        {"query_keywords": "min, max", "write_keywords": "min, max, default"}],
+      ["amplitude", "qty", "V",
+        {"query_keywords": "min, max", "write_keywords": "min, max, default"}],
+      ["offset", "qty", "V",
+        {"query_keywords": "min, max", "write_keywords": "min, max"}],
+      ["amplitude_unit", "choice", "Vpp, Vrms, dBm",
+        {"write_keywords": "default"}]
+      ],
+    "subsystems": ["amplitude_modulation"]
+  },
+
+  "amplitude_modulation":
+  {
+    "name": "am",
+    "description":  "Signal generator amplitude modulation.",
+    "indexed": false,
+    "commands": [
+      ["enabled", "bool", null, {}],
+      ["shape", "choice", "sinusoid, square, triangle, ramp, noise, user", {}],
+      ["frequency", "qty", "Hz",
+        {"query_keywords": "min, max", "write_keywords": "min, max, default"}],
+      ["depth", "qty", "%",
+        {"query_keywords": "min, max", "write_keywords": "min, max, default"}],
+      ["offset", "qty", "V",
+        {"query_keywords": "min, max", "write_keywords": "min, max"}]
+      ],
+    "subsystems": []
+  }
+}
