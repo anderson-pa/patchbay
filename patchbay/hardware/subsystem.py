@@ -67,15 +67,22 @@ def add_cmd(base_cls, factory, name, converter_type, converter_arg=None, *,
     :param query_keywords: additional SCPI query keywords for this command
     :param write_keywords: additional SCPI write keywords for this command
     """
+    fullname = f'{base_cls.__name__.lower()}.{name}'
+
     if query_keywords:
         query_keywords = [key.strip() for key in query_keywords.split(',')]
     if write_keywords:
         write_keywords = [key.strip() for key in write_keywords.split(',')]
     if converter_type == 'choice':
-        converter_arg = [arg.strip() for arg in converter_arg.split(',')]
+        choice_map = factory.choice_map[fullname]
+        choice_list = [arg.strip() for arg in converter_arg.split(',')]
+        converter_arg = {key: val for key, val in choice_map.items()
+                         if key in choice_list}
+
+        setattr(base_cls, f'{name}_choices',
+                staticmethod(lambda: tuple(converter_arg.keys())))
 
     converter = factory.get_converters(converter_type, converter_arg)
-    fullname = f'{base_cls.__name__.lower()}.{name}'
 
     # set the property or function
     if not any(converter):

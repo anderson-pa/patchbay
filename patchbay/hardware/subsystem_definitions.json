@@ -6,7 +6,7 @@
     "indexed": true,
     "commands": [
       ["enabled", "bool", null, {}],
-      ["shape", "choice", "sinusoid, square, triangle, ramp, noise, user", {}],
+      ["shape", "choice", "sinusoid, square, triangle, ramp, noise, custom", {}],
       ["frequency", "qty", "Hz",
         {"query_keywords": "min, max", "write_keywords": "min, max, default"}],
       ["amplitude", "qty", "V",

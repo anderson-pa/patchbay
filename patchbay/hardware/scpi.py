@@ -133,8 +133,23 @@ scpi_cmd_map = {'source.enabled': 'source{source}',
                 'source.amplitude_unit': 'source{source}:voltage:unit'
                 }
 
+scpi_choice_map = {'source.shape': {'sinusoid': 'SIN',
+                                    'square': 'SQU',
+                                    'triangle': 'TRI',
+                                    'ramp': 'RAMP',
+                                    'noise': 'NOIS',
+                                    'custom': 'USER',
+                                    },
+                   'source.amplitude_unit': {'Vpp': 'VPP',
+                                             'Vrms': 'VRMS',
+                                             'dBm': 'DBM'},
+                   }
+
 
 class ScpiFactory:
+
+    choice_map = scpi_choice_map
+
     @staticmethod
     def get_converters(converter_type, *args):
         converters = {'error': scpi_error,
