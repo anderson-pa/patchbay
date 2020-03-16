@@ -1,8 +1,11 @@
-from patchbay.node import Node
+from patchbay.hardware import scpi
 from patchbay.hardware.device_utils import mfr_nice_name
+from patchbay.hardware.subsystem import subsystem_factory, prototype_definitions
+from patchbay.node import Node
 
 
 class HP33120ASignalGenerator(Node):
+
     def __init__(self, device):
         self.device = device
 
@@ -12,10 +15,11 @@ class HP33120ASignalGenerator(Node):
         self.serial = self._get_serial(idn[2])
         self.versions = self._get_versions(idn[3])
 
-        channel_specs = {(1, 'carrier'): ['enabled']
-                         }
+        self.source = subsystem_factory(prototype_definitions['source'],
+                                        scpi.ScpiFactory)(self)
+        self.source.keys['source'] = 1
 
-        super().__init__(channel_specs)
+        super().__init__()
 
     def get_channel_attribute(self, channel_id, attr_name):
         super().get_channel_attribute(channel_id, attr_name)
