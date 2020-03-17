@@ -4,15 +4,19 @@ from collections import namedtuple
 from functools import wraps
 from os import path
 
-definition_file = path.join(path.dirname(__file__),
-                            'subsystem_definitions.json')
-with open(definition_file, 'r') as fp:
+_defs_file = path.join(path.dirname(__file__), 'subsystem_definitions.json')
+with open(_defs_file, 'r') as fp:
     prototype_definitions = json.load(fp)
 
 ValueConverter = namedtuple('ValueConverter', 'query, write')
 
 
 def add_can_querywrite_keywords(func):
+    """Decorator for ValueConverter functions to add query/write keywords
+
+    :param func: function to decorate
+    :return: decorated function with can_query and can_write as keywords
+    """
     @wraps(func)
     def wrapped(*args, can_query=True, can_write=True, **kwargs):
         converter = func(*args, **kwargs)
@@ -101,24 +105,25 @@ def add_cmd(base_cls, factory, name, converter_type, converter_arg=None, *,
         setattr(base_cls, f'{name}_choices',
                 staticmethod(lambda: tuple(converter_arg.keys())))
 
-    converter = factory.get_converters(converter_type, converter_arg)
+    converter = factory.get_converters(converter_type, converter_arg,
+                                       can_query=can_query, can_write=can_write)
 
     # set the property or function
-    if not any(converter):
+    if not all(converter):
         # write a function if no converters
-        if can_query and converter.query is not None:
+        if converter.query is not None:
             setattr(base_cls, 'get_' + name,
                     factory.query_func(fullname, converter.query))
-        if can_write:
+        else:
             w_prefix = 'set_' if converter.write is not None else ''
             setattr(base_cls, w_prefix + name,
                     factory.write_func(fullname, converter.write))
     else:
         # write a property
         prop_get, prop_set = None, None
-        if can_query and converter.query is not None:
+        if converter.query is not None:
             prop_get = factory.query_func(fullname, converter.query)
-        if can_write and converter.write is not None:
+        if converter.write is not None:
             prop_set = factory.write_func(fullname, converter.write)
 
         setattr(base_cls, name, property(prop_get, prop_set))

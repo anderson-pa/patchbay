@@ -27,7 +27,7 @@ def scpi_error(_=None):
     `arg` is present only to keep the signature consistent with other
     converters.
 
-    :param _: Placeholder for signature matching to other converter functions
+    :param _: placeholder for signature matching to other converter functions
     :return: ValueConverter for errors
     """
     return ValueConverter(parse_error, None)
@@ -41,7 +41,7 @@ def scpi_bool(_=None):
     Queries typically return 0/1 as a string, so convert to int and then
     boolean.
 
-    :param _: Placeholder for signature matching to other converter functions
+    :param _: placeholder for signature matching to other converter functions
     :return: ValueConverter for booleans
     """
     return ValueConverter(lambda v: (bool(int(v))), int)
@@ -58,25 +58,62 @@ def scpi_num(dtype):
 
 
 @lru_cache()  # don't create multiple functions for the same conversion
-def qty_write_converter(unit_str):
-    """Get a converter function for scpi_qty.
+def qty_query_converter(unit_str):
+    """Get a SCPI query converter function for quantities.
 
-    Return a function that converts an input value to the given base unit.
-    The returned function will raises a ValueError if the value is not a pint
-    quantity.
+    Return a function that converts an input value to a quantity with the
+    given base unit.
 
     :param unit_str: string representation of the unit for this converter
-    :return: function for qty write conversions.
+    :return: function for quantity query conversions.
     """
 
-    def write_converter(value):
+    def query_converter(value):
+        """Return the value as a quantity with units of {unit}
+
+        :param value: value returned by the query
+        :return: value as a quantity with units of {unit}
+        """
+        return float(value) * ureg(unit_str)
+
+    query_converter.__doc__ = str(query_converter.__doc__).format(unit=unit_str)
+    return query_converter
+
+
+@lru_cache()  # don't create multiple functions for the same conversion
+def qty_write_converter(unit_str):
+    """Get a SCPI write converter function for quantities.
+
+    Return a function that converts an input quantity value to the magnitude
+    in the given base unit. The returned function will raises a ValueError if
+    the input value is not a pint quantity.
+
+    :param unit_str: string representation of the unit for this converter
+    :return: function for quantity write conversions.
+    """
+
+    def write_converter(quantity):
+        """Return the magnitude of quantity in terms of {unit}
+
+        :param quantity: pint quantity
+        :return: magnitude in terms of {unit}
+        """
         try:
-            base_unit_value = value.to(ureg(unit_str))
+            base_unit_value = quantity.to(ureg(unit_str))
         except AttributeError:
             raise ValueError(f'Value has no units.')
         return base_unit_value.magnitude
 
+    write_converter.__doc__ = str(write_converter.__doc__).format(unit=unit_str)
     return write_converter
+
+
+def value_to_percent(v):
+    return v * 100
+
+
+def value_from_percent(v):
+    return float(v)/100
 
 
 @add_can_querywrite_keywords
@@ -100,10 +137,9 @@ def scpi_qty(unit_str):
     :return: ValueConverter for quantities
     """
     if unit_str == '%':
-        converter = ValueConverter(lambda v: float(v) / 100,
-                                   lambda v: v * 100)
+        converter = ValueConverter(value_from_percent, value_to_percent)
     else:
-        converter = ValueConverter(lambda v: float(v) * ureg(unit_str),
+        converter = ValueConverter(qty_query_converter(unit_str),
                                    qty_write_converter(unit_str))
     return converter
 
@@ -157,12 +193,12 @@ class ScpiFactory:
     choice_map = scpi_choice_map
 
     @staticmethod
-    def get_converters(converter_type, *args):
+    def get_converters(converter_type, *args, **kwargs):
         converters = {'error': scpi_error,
                       'bool': scpi_bool,
                       'qty': scpi_qty,
                       'choice': scpi_choice}
-        return converters[converter_type](*args)
+        return converters[converter_type](*args, **kwargs)
 
     @staticmethod
     def query_func(name, converter, keyword=None):
