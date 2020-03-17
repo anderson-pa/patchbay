@@ -2,7 +2,8 @@ import builtins
 from functools import lru_cache
 
 from patchbay import ureg
-from patchbay.hardware.subsystem import ValueConverter
+from patchbay.hardware.subsystem import (ValueConverter,
+                                         add_can_querywrite_keywords)
 
 
 def parse_error(err_str):
@@ -18,32 +19,35 @@ def parse_error(err_str):
     return int(err_num), err_msg.strip('"')
 
 
-def scpi_error(arg=None):
+@add_can_querywrite_keywords
+def scpi_error(_=None):
     """Get a SCPI converter for errors.
 
     Errors are a one-way communication, so the write converter is not needed.
     `arg` is present only to keep the signature consistent with other
     converters.
 
-    :param arg: not used. only present for signature consistency.
+    :param _: Placeholder for signature matching to other converter functions
     :return: ValueConverter for errors
     """
     return ValueConverter(parse_error, None)
 
 
-def scpi_bool(arg=None):
+@add_can_querywrite_keywords
+def scpi_bool(_=None):
     """Get a SCPI converter for booleans.
 
     Booleans are written to the device as 0/1 typically, so convert to int.
     Queries typically return 0/1 as a string, so convert to int and then
     boolean.
 
-    :param arg: not used. only present for signature consistency
+    :param _: Placeholder for signature matching to other converter functions
     :return: ValueConverter for booleans
     """
     return ValueConverter(lambda v: (bool(int(v))), int)
 
 
+@add_can_querywrite_keywords
 def scpi_num(dtype):
     """Get a SCPI converter for unit-less numbers.
 
@@ -75,6 +79,7 @@ def qty_write_converter(unit_str):
     return write_converter
 
 
+@add_can_querywrite_keywords
 def scpi_qty(unit_str):
     """Get a SCPI converter for quantities.
 
@@ -103,6 +108,7 @@ def scpi_qty(unit_str):
     return converter
 
 
+@add_can_querywrite_keywords
 def scpi_choice(choices):
     """Get a SCPI converter for choice lists.
 
@@ -170,7 +176,7 @@ class ScpiFactory:
 
 
 def _build_command(base_cmd, post=None, *, is_query=True):
-    """Build a SCPI command.
+    """Build a SCPI command from the base string.
 
     :param base_cmd: the root SCPI command
     :param post: keyword that comes after the command, or None

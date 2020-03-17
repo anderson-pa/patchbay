@@ -1,6 +1,7 @@
 import json
 import weakref
 from collections import namedtuple
+from functools import wraps
 from os import path
 
 definition_file = path.join(path.dirname(__file__),
@@ -9,6 +10,24 @@ with open(definition_file, 'r') as fp:
     prototype_definitions = json.load(fp)
 
 ValueConverter = namedtuple('ValueConverter', 'query, write')
+
+
+def add_can_querywrite_keywords(func):
+    @wraps(func)
+    def wrapped(*args, can_query=True, can_write=True, **kwargs):
+        converter = func(*args, **kwargs)
+        return ValueConverter(converter.query if can_query else None,
+                              converter.write if can_write else None)
+
+    # add the keywords to the docstring
+    can_qw_doc_str = (':param can_query: if True, add a query converter\n    '
+                      ':param can_write: if True, add a write converter\n    ')
+
+    doc_return_pos = wrapped.__doc__.find(':return:')
+    if doc_return_pos > -1:
+        wrapped.__doc__ = (wrapped.__doc__[:doc_return_pos]
+                           + can_qw_doc_str + wrapped.__doc__[doc_return_pos:])
+    return wrapped
 
 
 def subsystem_factory(prototype, cmd_factory):
