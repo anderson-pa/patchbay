@@ -35,5 +35,16 @@
         {"query_keywords": "min, max", "write_keywords": "min, max"}]
       ],
     "subsystems": []
+  },
+
+  "system":
+  {
+    "name": "system",
+    "description":  "System functions.",
+    "indexed": false,
+    "commands": [
+      ["error", "error", null, {}]
+      ],
+    "subsystems": []
   }
 }
