@@ -107,9 +107,17 @@ class Node:
             self.set_channel_attribute(channel_id, attr_name, value)
 
 
-class Instrument(Node):
+class HardwareNode(Node):
     """An instrument is a node that is associated with a physical device."""
-    pass
+    __channel_classes = []
+    __subsystem_classes = []
+
+    def __init__(self, device):
+        self.device = device
+        super().__init__(None)
+
+    def _device(self):
+        return self.device
 
 
 class Channel:

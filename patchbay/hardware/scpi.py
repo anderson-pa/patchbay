@@ -2,7 +2,7 @@ import builtins
 from functools import lru_cache
 
 from patchbay import ureg
-from patchbay.hardware.subsystem import (ValueConverter,
+from patchbay.hardware.subsystem import (ValueConverter, SubsystemFactory,
                                          add_can_querywrite_keywords)
 
 
@@ -166,14 +166,21 @@ def scpi_choice(choices):
 
 # converters for strings (needed?), binary (e.g. curve)?
 
+scpi_converter_map = {'error': scpi_error,
+                      'bool': scpi_bool,
+                      'qty': scpi_qty,
+                      'choice': scpi_choice
+                      }
 
 scpi_cmd_map = {'source.enabled': 'source{source}',
                 'source.shape': 'source{source}:function:shape',
                 'source.frequency': 'source{source}:frequency',
                 'source.amplitude': 'source{source}:voltage',
                 'source.offset': 'source{source}:voltage:offset',
-                'source.amplitude_unit': 'source{source}:voltage:unit'
+                'source.amplitude_unit': 'source{source}:voltage:unit',
+                'system.error': 'system:error',
                 }
+
 
 scpi_choice_map = {'source.shape': {'sinusoid': 'SIN',
                                     'square': 'SQU',
@@ -188,17 +195,19 @@ scpi_choice_map = {'source.shape': {'sinusoid': 'SIN',
                    }
 
 
-class ScpiFactory:
+class ScpiFactory(SubsystemFactory):
 
     choice_map = scpi_choice_map
+    converter_map = {'error': scpi_error,
+                     'bool': scpi_bool,
+                     'qty': scpi_qty,
+                     'choice': scpi_choice}
 
-    @staticmethod
-    def get_converters(converter_type, *args, **kwargs):
-        converters = {'error': scpi_error,
-                      'bool': scpi_bool,
-                      'qty': scpi_qty,
-                      'choice': scpi_choice}
-        return converters[converter_type](*args, **kwargs)
+    def __init__(self, prototype_name):
+        self.prototype_name = prototype_name
+
+    def __call__(self, prototype_name, *args, **kwargs):
+        self.prototype_name = prototype_name
 
     @staticmethod
     def query_func(name, converter, keyword=None):
@@ -240,7 +249,7 @@ def _query_func(command, converter):
 
     def query_func(self):
         return converter(
-            self._parent().device.query(command.format(**self.keys)))
+            self._device().query(command.format(**self.keys)))
 
     return query_func
 
@@ -255,13 +264,12 @@ def _write_func(command, converter):
     if '{' in command:
         if converter is None:
             def write_func(self):
-                self._parent().device.write(command.format(**self.keys))
+                self._device().write(command.format(**self.keys))
         else:
             def write_func(self, value):
                 value = converter(value)
-                self._parent().device.write(command.format(**self.keys,
-                                                           value=value))
+                self._device().write(command.format(**self.keys, value=value))
     else:
         def write_func(self):
-            self._parent().device.write(command)
+            self._device().write(command)
     return write_func
