@@ -1,6 +1,5 @@
 from patchbay.hardware import scpi
 from patchbay.hardware.device_utils import mfr_nice_name
-from patchbay.hardware.subsystem import prototype_definitions
 from patchbay.node import HardwareNode
 
 
@@ -15,8 +14,7 @@ class HP33120ASignalGenerator(HardwareNode):
         self.serial = self._get_serial(idn[2])
         self.versions = self._get_versions(idn[3])
 
-        self.source = scpi.ScpiFactory.new_subsystem(
-            prototype_definitions['source'])(self)
+        self.source = scpi.ScpiFactory.new_subsystem('source')(self)
         self.source.keys['source'] = 1
 
     def get_channel_attribute(self, channel_id, attr_name):
@@ -49,5 +47,4 @@ class HP33120ASignalGenerator(HardwareNode):
         return self.device.query('calibration:string?')
 
 
-scpi.ScpiFactory.add_cmds(prototype_definitions['system'],
-                          HP33120ASignalGenerator)
+scpi.ScpiFactory.add_subsystem('system', HP33120ASignalGenerator)

@@ -8,6 +8,19 @@ _defs_file = path.join(path.dirname(__file__), 'subsystem_definitions.json')
 with open(_defs_file, 'r') as fp:
     prototype_definitions = json.load(fp)
 
+for subsystem in prototype_definitions.values():
+    for cmd in subsystem['commands']:
+        # cmd is list: cmd_name, cmd_type, cmd_arg, kwargs
+        cmd[0] = f'{subsystem["name"]}.{cmd[0]}'
+
+        if cmd[1] == 'choice':
+            cmd[2] = [arg.strip() for arg in cmd[2].split(',')]
+
+        for kw in ['query_keywords', 'write_keywords']:
+            if kw in cmd[3]:
+                cmd[3][kw] = [key.strip() for key in cmd[3][kw].split(',')]
+
+
 ValueConverter = namedtuple('ValueConverter', 'query, write')
 
 
@@ -40,12 +53,31 @@ class SubsystemFactory:
     choice_map = {}
 
     @classmethod
-    def new_subsystem(cls, prototype):
-        return cls.add_cmds(prototype, target=None)
+    def new_subsystem(cls, name):
+        """Get a class definition for the requested subsystem.
+
+        :param name: name of the subsystem to generate
+        :return: new subsystem class
+        """
+        prototype = prototype_definitions[name]
+        target = cls.get_new_subsystem(prototype['name'],
+                                       prototype['description'])
+        cls.add_cmds(prototype, target)
+        return target
+
+    @classmethod
+    def add_subsystem(cls, name, target):
+        """Add a subsystem onto the given target.
+
+        :param name: name of the subsystem to add
+        :param target: class to add commands to.
+        """
+        prototype = prototype_definitions[name]
+        cls.add_cmds(prototype, target)
 
     @classmethod
     def add_cmds(cls, prototype, target):
-        """Build a subsystem on target from the prototype definition.
+        """Add commands to target from the prototype definition.
 
         Prototype is a dictionary with the keys: name, description, iterable,
         commands, subsystems.
@@ -56,36 +88,21 @@ class SubsystemFactory:
         todo: full writeup of the format once this has been refined.
 
         :param prototype: definition of the subsystem commands
-        :param target: class to add commands to. If None, make a new class
-        :return: subsystem class
+        :param target: class to add commands to.
         """
-
-        if target is None:
-            target = cls.get_new_subsystem(prototype['name'],
-                                           prototype['description'])
         if not hasattr(target, 'keys'):
             target.keys = {}
 
-        for cmd in prototype['commands']:
-            cmd_name, cmd_type, cmd_arg, kwargs = cmd
-            lookup_name = f'{prototype["name"]}.{cmd_name}'
-
-            for kw in ['query_keywords', 'write_keywords']:
-                if kw in kwargs:
-                    kwargs[kw] = [key.strip() for key in kwargs[kw].split(',')]
-
+        for cmd_name, cmd_type, cmd_arg, cmd_kwargs in prototype['commands']:
             if cmd_type == 'choice':
-                choice_map = cls.choice_map[lookup_name]
-                choice_list = [arg.strip() for arg in cmd_arg.split(',')]
+                choice_map = cls.choice_map[cmd_name]
                 cmd_arg = {key: val for key, val in choice_map.items()
-                           if key in choice_list}
+                           if key in cmd_arg}
 
-            cls.add_cmd(target, lookup_name, cmd_type, cmd_arg, **kwargs)
-
-        return target
+            cls.add_cmd(target, cmd_name, cmd_type, cmd_arg, **cmd_kwargs)
 
     @classmethod
-    def add_cmd(cls, target, fullname, converter_func, converter_arg=None, *,
+    def add_cmd(cls, target, fullname, cmd_type, cmd_arg=None, *,
                 can_query=True, can_write=True,
                 query_keywords=None, write_keywords=None):
         """Add command parameters and methods to a class.
@@ -124,9 +141,9 @@ class SubsystemFactory:
         list of the allowed choices: `target.name_choices()`
 
         :param target: class where the commands will be added
-        :param name: base name for the attributes and methods
-        :param converter_func: ValueConverter specific for device and argument
-        :param converter_arg: argument passed to converter constructor, if any
+        :param fullname: full lookup name for the attributes and methods
+        :param cmd_type: ValueConverter specific for device and argument
+        :param cmd_arg: argument passed to converter constructor, if any
         :param can_query: if True, a query property is added
         :param can_write: if True, a write property is added
         :param query_keywords: additional query keywords for this command
@@ -134,12 +151,12 @@ class SubsystemFactory:
         """
         name = fullname.split('.')[-1]
 
-        if converter_func == 'choice':
+        if cmd_type == 'choice':
             setattr(target, f'{name}_choices',
-                    staticmethod(lambda: tuple(converter_arg.keys())))
+                    staticmethod(lambda: tuple(cmd_arg.keys())))
 
-        converter = converter_func(converter_arg, can_query=can_query,
-                                   can_write=can_write)
+        c_func = cls.converter_map[cmd_type]
+        converter = c_func(cmd_arg, can_query=can_query, can_write=can_write)
 
         # set the property or function
         if all(converter):
