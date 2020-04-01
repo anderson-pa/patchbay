@@ -41,11 +41,11 @@ class SubsystemFactory:
 
     @classmethod
     def new_subsystem(cls, prototype):
-        return cls.add_cmds(prototype, base_cls=None)
+        return cls.add_cmds(prototype, target=None)
 
     @classmethod
-    def add_cmds(cls, prototype, base_cls):
-        """Build a subsystem from the prototype using the given command factory.
+    def add_cmds(cls, prototype, target):
+        """Build a subsystem on target from the prototype definition.
 
         Prototype is a dictionary with the keys: name, description, iterable,
         commands, subsystems.
@@ -56,109 +56,120 @@ class SubsystemFactory:
         todo: full writeup of the format once this has been refined.
 
         :param prototype: definition of the subsystem commands
-        :param base_cls: class to add commands to. If None, make a new class
+        :param target: class to add commands to. If None, make a new class
         :return: subsystem class
         """
 
-        if base_cls is None:
-            base_cls = cls.get_new_subsystem(prototype['name'],
-                                             prototype['description'])
-        if not hasattr(base_cls, 'keys'):
-            base_cls.keys = {}
+        if target is None:
+            target = cls.get_new_subsystem(prototype['name'],
+                                           prototype['description'])
+        if not hasattr(target, 'keys'):
+            target.keys = {}
 
         for cmd in prototype['commands']:
             cmd_name, cmd_type, cmd_arg, kwargs = cmd
+            lookup_name = f'{prototype["name"]}.{cmd_name}'
 
-            cls.add_cmd(base_cls, f'{prototype["name"]}.{cmd_name}',
-                        cmd_type, cmd_arg, **kwargs)
+            for kw in ['query_keywords', 'write_keywords']:
+                if kw in kwargs:
+                    kwargs[kw] = [key.strip() for key in kwargs[kw].split(',')]
 
-        return base_cls
+            if cmd_type == 'choice':
+                choice_map = cls.choice_map[lookup_name]
+                choice_list = [arg.strip() for arg in cmd_arg.split(',')]
+                cmd_arg = {key: val for key, val in choice_map.items()
+                           if key in choice_list}
+
+            cls.add_cmd(target, lookup_name, cmd_type, cmd_arg, **kwargs)
+
+        return target
 
     @classmethod
-    def add_cmd(cls, base_cls, name, converter_type, converter_arg=None, *,
+    def add_cmd(cls, target, fullname, converter_func, converter_arg=None, *,
                 can_query=True, can_write=True,
                 query_keywords=None, write_keywords=None):
-        """Add command parameters and methods to a subsystem class.
+        """Add command parameters and methods to a class.
 
-        Add a properties and methods associated with `name` to the subsystem
-        class. Values are converted as appropriate to translate from Python to
-        the device:
+        Add a properties and methods associated with `name` to `target`,
+        which is generally a subsystem class. These properties and methods
+        use the converter functions as post-/pre- processors to translate
+        values between Python and the device:
 
-            c.name -> query_converter(query_cmd())
-            c.name = value -> write_cmd(write_converter(value))
+            Query -> query_converter(query_cmd())
+            Write -> write_cmd(write_converter(value))
 
-        If converters are None, then a command without parameters is added:
-        name()
+        If the command is query and write accessible, a property is added. A
+        get/set method is used if only query/write is allowed. Otherwise, an
+        unadorned method is added. So:
+
+            QW -> target.name [= value]
+            Q. -> target.get_name()
+            .W -> target.set_name(value)
+            .. -> target.name()
+
+        Query/Write access is defined by the keywords 'can_query/write'
+        combined with existence of the corresponding converter. For example,
+        if `can_write` is False or converter.write is None, the command is
+        not writable.
 
         If keywords are included, additional properties are added for each:
-        `c.name_qkeyword()` and `c.name_to_wkeyword()`
-
-        This allows for commands that have e.g., min, max, or default values.
+        `target.name_qkeyword()` and `target.name_to_wkeyword()`. This allows
+        for commands that have e.g., min, max, or default values.
 
         The different converters allow for more customization, including
         boolean conversions, enforcing units on quantities, and setting a
         list of choices.
 
-        :param base_cls: class to add on to
-        :param name: name of the attribute or method
-        :param converter_type: ValueConverter specific for device and argument
+        An additional method is added for choice converters that returns a
+        list of the allowed choices: `target.name_choices()`
+
+        :param target: class where the commands will be added
+        :param name: base name for the attributes and methods
+        :param converter_func: ValueConverter specific for device and argument
         :param converter_arg: argument passed to converter constructor, if any
         :param can_query: if True, a query property is added
         :param can_write: if True, a write property is added
         :param query_keywords: additional query keywords for this command
         :param write_keywords: additional write keywords for this command
         """
-        fullname = name
         name = fullname.split('.')[-1]
 
-        if query_keywords:
-            query_keywords = [key.strip() for key in query_keywords.split(',')]
-        if write_keywords:
-            write_keywords = [key.strip() for key in write_keywords.split(',')]
-        if converter_type == 'choice':
-            choice_map = cls.choice_map[fullname]
-            choice_list = [arg.strip() for arg in converter_arg.split(',')]
-            converter_arg = {key: val for key, val in choice_map.items()
-                             if key in choice_list}
-
-            setattr(base_cls, f'{name}_choices',
+        if converter_func == 'choice':
+            setattr(target, f'{name}_choices',
                     staticmethod(lambda: tuple(converter_arg.keys())))
 
-        converter = cls.converter_map[converter_type](converter_arg,
-                                                      can_query=can_query,
-                                                      can_write=can_write)
+        converter = converter_func(converter_arg, can_query=can_query,
+                                   can_write=can_write)
 
         # set the property or function
-        if not all(converter):
-            # write a function if no converters
+        if all(converter):
+            # write a property
+            prop_get = cls.query_func(fullname, converter.query)
+            prop_set = cls.write_func(fullname, converter.write)
+            setattr(target, name, property(prop_get, prop_set))
+        else:
             if converter.query is not None:
-                setattr(base_cls, 'get_' + name,
+                # only a query converter so create a get method
+                setattr(target, 'get_' + name,
                         cls.query_func(fullname, converter.query))
             else:
+                # if only a write converter, create a get method
+                # if neither, its a plain command with no inputs
                 w_prefix = 'set_' if converter.write is not None else ''
-                setattr(base_cls, w_prefix + name,
+                setattr(target, w_prefix + name,
                         cls.write_func(fullname, converter.write))
-        else:
-            # write a property
-            prop_get, prop_set = None, None
-            if converter.query is not None:
-                prop_get = cls.query_func(fullname, converter.query)
-            if converter.write is not None:
-                prop_set = cls.write_func(fullname, converter.write)
-
-            setattr(base_cls, name, property(prop_get, prop_set))
 
         # set additional properties for the keywords
         if query_keywords is None:
             query_keywords = []
         for key in query_keywords:
-            setattr(base_cls, f'{name}_{key}',
+            setattr(target, f'{name}_{key}',
                     property(cls.query_func(fullname, converter.query, key)))
 
         if write_keywords is None:
             write_keywords = []
         for key in write_keywords:
-            setattr(base_cls, f'{name}_to_{key}',
+            setattr(target, f'{name}_to_{key}',
                     cls.write_func(fullname, None, key))
 
     @staticmethod
@@ -178,11 +189,11 @@ class SubsystemFactory:
         :return: class
         """
 
-        base_class = type(name.capitalize(), (object,), {})
-        base_class.__init__ = __init__
-        base_class.__doc__ = description
-        base_class._device = _device
-        return base_class
+        new_subsystem = type(name.capitalize(), (object,), {})
+        new_subsystem.__init__ = __init__
+        new_subsystem.__doc__ = description
+        new_subsystem._device = _device
+        return new_subsystem
 
 
 def __init__(self, parent):

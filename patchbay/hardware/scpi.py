@@ -172,16 +172,6 @@ scpi_converter_map = {'error': scpi_error,
                       'choice': scpi_choice
                       }
 
-scpi_cmd_map = {'source.enabled': 'source{source}',
-                'source.shape': 'source{source}:function:shape',
-                'source.frequency': 'source{source}:frequency',
-                'source.amplitude': 'source{source}:voltage',
-                'source.offset': 'source{source}:voltage:offset',
-                'source.amplitude_unit': 'source{source}:voltage:unit',
-                'system.error': 'system:error',
-                }
-
-
 scpi_choice_map = {'source.shape': {'sinusoid': 'SIN',
                                     'square': 'SQU',
                                     'triangle': 'TRI',
@@ -194,14 +184,20 @@ scpi_choice_map = {'source.shape': {'sinusoid': 'SIN',
                                              'dBm': 'DBM'},
                    }
 
+scpi_cmd_map = {'source.enabled': 'source{source}',
+                'source.shape': 'source{source}:function:shape',
+                'source.frequency': 'source{source}:frequency',
+                'source.amplitude': 'source{source}:voltage',
+                'source.offset': 'source{source}:voltage:offset',
+                'source.amplitude_unit': 'source{source}:voltage:unit',
+                'system.error': 'system:error',
+                }
+
 
 class ScpiFactory(SubsystemFactory):
 
     choice_map = scpi_choice_map
-    converter_map = {'error': scpi_error,
-                     'bool': scpi_bool,
-                     'qty': scpi_qty,
-                     'choice': scpi_choice}
+    converter_map = scpi_converter_map
 
     def __init__(self, prototype_name):
         self.prototype_name = prototype_name
