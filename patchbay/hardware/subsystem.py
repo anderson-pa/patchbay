@@ -8,10 +8,10 @@ _defs_file = path.join(path.dirname(__file__), 'subsystem_definitions.json')
 with open(_defs_file, 'r') as fp:
     prototype_definitions = json.load(fp)
 
-for subsystem in prototype_definitions.values():
-    for cmd in subsystem['commands']:
+for subsystem, subsys_def in prototype_definitions.items():
+    for cmd in subsys_def['commands']:
         # cmd is list: cmd_name, cmd_type, cmd_arg, kwargs
-        cmd[0] = f'{subsystem["name"]}.{cmd[0]}'
+        cmd[0] = f'{subsystem}.{cmd[0]}'
 
         if cmd[1] == 'choice':
             cmd[2] = [arg.strip() for arg in cmd[2].split(',')]
@@ -100,6 +100,10 @@ class SubsystemFactory:
                            if key in cmd_arg}
 
             cls.add_cmd(target, cmd_name, cmd_type, cmd_arg, **cmd_kwargs)
+
+        for name in prototype['subsystems']:
+            subsys = cls.new_subsystem(name)
+            target._subsystems[subsys.__name__.lower()] = subsys
 
     @classmethod
     def add_cmd(cls, target, fullname, cmd_type, cmd_arg=None, *,
@@ -210,12 +214,17 @@ class SubsystemFactory:
         new_subsystem.__init__ = __init__
         new_subsystem.__doc__ = description
         new_subsystem._device = _device
+        new_subsystem._subsystems = {}
         return new_subsystem
 
 
 def __init__(self, parent):
     self._parent = weakref.ref(parent)
     self.keys = {}
+
+    for key, val in self._subsystems.items():
+        setattr(self, key, val(parent))
+        setattr(getattr(self, key), 'keys', self.keys)
 
 
 def _device(self):

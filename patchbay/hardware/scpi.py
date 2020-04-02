@@ -165,6 +165,13 @@ def scpi_choice(choices):
 
 
 # converters for strings (needed?), binary (e.g. curve)?
+function_shapes = {'sinusoid': 'SIN',
+                   'square': 'SQU',
+                   'triangle': 'TRI',
+                   'ramp': 'RAMP',
+                   'noise': 'NOIS',
+                   'custom': 'USER',
+                   }
 
 scpi_converter_map = {'error': scpi_error,
                       'bool': scpi_bool,
@@ -172,19 +179,18 @@ scpi_converter_map = {'error': scpi_error,
                       'choice': scpi_choice
                       }
 
-scpi_choice_map = {'source.shape': {'sinusoid': 'SIN',
-                                    'square': 'SQU',
-                                    'triangle': 'TRI',
-                                    'ramp': 'RAMP',
-                                    'noise': 'NOIS',
-                                    'custom': 'USER',
-                                    },
+scpi_choice_map = {'amplitude_modulation.shape': function_shapes,
+                   'source.shape': function_shapes,
                    'source.amplitude_unit': {'Vpp': 'VPP',
                                              'Vrms': 'VRMS',
                                              'dBm': 'DBM'},
                    }
 
-scpi_cmd_map = {'source.enabled': 'source{source}',
+scpi_cmd_map = {'amplitude_modulation.enabled': 'am:state',
+                'amplitude_modulation.shape': 'am:internal:function',
+                'amplitude_modulation.frequency': 'am:internal:frequency',
+                'amplitude_modulation.depth': 'am{source}:depth',
+                'source.enabled': 'source{source}',
                 'source.shape': 'source{source}:function:shape',
                 'source.frequency': 'source{source}:frequency',
                 'source.amplitude': 'source{source}:voltage',
@@ -207,13 +213,19 @@ class ScpiFactory(SubsystemFactory):
 
     @staticmethod
     def query_func(name, converter, keyword=None):
-        cmd = _build_command(scpi_cmd_map[name], keyword)
-        return _query_func(cmd, converter)
+        try:
+            cmd = _build_command(scpi_cmd_map[name], keyword)
+            return _query_func(cmd, converter)
+        except KeyError:
+            return not_implemented_func
 
     @staticmethod
     def write_func(name, converter, keyword=None):
-        cmd = _build_command(scpi_cmd_map[name], keyword, is_query=False)
-        return _write_func(cmd, converter)
+        try:
+            cmd = _build_command(scpi_cmd_map[name], keyword, is_query=False)
+            return _write_func(cmd, converter)
+        except KeyError:
+            return not_implemented_func
 
 
 def _build_command(base_cmd, post=None, *, is_query=True):
@@ -269,3 +281,7 @@ def _write_func(command, converter):
         def write_func(self):
             self._device().write(command)
     return write_func
+
+
+def not_implemented_func(self, *args):
+    raise NotImplementedError
