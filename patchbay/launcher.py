@@ -9,7 +9,7 @@ from qt.patchbay_ui import Patchbay
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    app.setOrganizationName('Phillip Anderson')
+    app.setOrganizationName('Andersonics')
     app.setOrganizationDomain('andersonics.llc')
     app.setApplicationName('patchbay')
 
