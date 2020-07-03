@@ -1,11 +1,22 @@
+from importlib.util import spec_from_file_location, module_from_spec
+
 from PySide2.QtCore import QSettings
-from PySide2.QtWidgets import QMainWindow
+from PySide2.QtWidgets import QMainWindow, QFileDialog, QFrame
+
+from qt import actions
 
 
 class Patchbay(QMainWindow):
     """MainWindow for Patchbay."""
+
     def __init__(self):
         super().__init__()
+        self.patch = None
+
+        self.actions = {name: getattr(actions, f'{name}_action')(self, connect)
+                        for name, connect in [('close', self.close_patch),
+                                              ('open', self.open_patch),
+                                              ('quit', self.close)]}
 
         # initialize the UI
         self.setWindowTitle('patchbay')
@@ -21,6 +32,9 @@ class Patchbay(QMainWindow):
         menubar = self.menuBar()
 
         file_menu = menubar.addMenu('&File')
+        for item in ['open', 'close', 'quit']:
+            file_menu.addAction(self.actions[item])
+
         help_menu = menubar.addMenu('&Help')
 
     def create_statusbar(self):
@@ -45,7 +59,30 @@ class Patchbay(QMainWindow):
         self.restoreGeometry(settings.value('MainWindow/Geometry', b''))
         self.restoreState(settings.value('MainWindow/State', b''))
 
+        self.actions['close'].setDisabled(self.patch is None)
+
     def closeEvent(self, event):
         """Override parent closeEvent to save settings first."""
         self.save_settings()
         QMainWindow.closeEvent(self, event)
+
+    def open_patch(self):
+        """Select and open a new patch to use."""
+        f_name, _ = QFileDialog.getOpenFileName(self, caption='Select a patch to load',
+                                                filter='Patches (*.pbp, *.py)')
+        if f_name:
+            self.close_patch()
+            spec = spec_from_file_location("PatchModule", f_name)
+            patch_module = module_from_spec(spec)
+            spec.loader.exec_module(patch_module)
+            self.patch = patch_module.Patch(self)
+
+            self.setCentralWidget(self.patch.ui)
+            self.actions['close'].setDisabled(False)
+
+    def close_patch(self):
+        """Close the current patch."""
+        if self.patch:
+            self.patch.close()
+        self.setCentralWidget(QFrame())
+        self.actions['close'].setDisabled(True)
