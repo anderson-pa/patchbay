@@ -1,3 +1,4 @@
+import weakref
 from importlib.util import spec_from_file_location, module_from_spec
 
 from PySide2.QtCore import QSettings
@@ -17,6 +18,7 @@ class Patchbay(QMainWindow):
                         for name, connect in [('close', self.close_patch),
                                               ('open', self.open_patch),
                                               ('quit', self.close)]}
+        self.toolbar = None
 
         # initialize the UI
         self.setWindowTitle('patchbay')
@@ -75,7 +77,7 @@ class Patchbay(QMainWindow):
             spec = spec_from_file_location("PatchModule", f_name)
             patch_module = module_from_spec(spec)
             spec.loader.exec_module(patch_module)
-            self.patch = patch_module.Patch(self)
+            self.patch = patch_module.Patch(weakref.ref(self))
 
             self.setCentralWidget(self.patch.ui)
             self.actions['close'].setDisabled(False)
