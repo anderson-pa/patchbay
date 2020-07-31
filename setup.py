@@ -9,6 +9,7 @@ setuptools.setup(
     author='Phillip Anderson',
     author_email='python.patchbay@gmail.com',
     description='High level automation and device communication.',
+    install_requires=['pint'],
     license='Fair Source 0.9 [10]',
     long_description=long_description,
     long_description_content_type='text/markdown',
