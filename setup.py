@@ -3,9 +3,17 @@ import setuptools
 with open('README.md', 'r') as fh:
     long_description = fh.read()
 
+with open('patchbay/__init__.py', 'r') as fh:
+    for line in fh:
+        if line.startswith('__version__'):
+            pb_version = line.split("'")[1]
+            break
+    else:
+        raise RuntimeError("Unable to find version string.")
+
 setuptools.setup(
     name='patchbay',
-    version='0.0.2',
+    version=pb_version,
     author='Phillip Anderson',
     author_email='python.patchbay@gmail.com',
     description='High level automation and device communication.',
