@@ -4,7 +4,7 @@ from importlib.util import spec_from_file_location, module_from_spec
 from PySide2.QtCore import QSettings
 from PySide2.QtWidgets import QMainWindow, QFileDialog, QFrame
 
-from qt import actions
+from patchbay.qt import actions
 
 
 class Patchbay(QMainWindow):

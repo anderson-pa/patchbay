@@ -17,7 +17,12 @@ setuptools.setup(
     author='Phillip Anderson',
     author_email='python.patchbay@gmail.com',
     description='High level automation and device communication.',
-    install_requires=['pint'],
+    entry_points={'console_scripts':
+                      ['patchbay = patchbay.__main__:main'],
+                  'gui_scripts':
+                      ['patchbay-ui = patchbay.__main__:main_gui']
+                  },
+    install_requires=['matplotlib', 'numpy', 'pandas', 'pint'],
     license='Fair Source 0.9 [10]',
     long_description=long_description,
     long_description_content_type='text/markdown',
