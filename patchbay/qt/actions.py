@@ -13,6 +13,7 @@ def open_action(parent, connect_to=None):
 
 def close_action(parent, connect_to=None):
     action = QAction('&Close', parent)
+    action.setShortcut(QKeySequence('Ctrl+W'))
     action.setStatusTip('Close the current patch.')
     if connect_to is None:
         connect_to = parent.close
