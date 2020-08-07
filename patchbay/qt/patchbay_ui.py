@@ -1,16 +1,14 @@
-import weakref
-from importlib.util import spec_from_file_location, module_from_spec
-
 from PySide2.QtCore import QSettings
 from PySide2.QtWidgets import QMainWindow, QFileDialog, QFrame
 
+from patchbay.patch import load_patch, BaseUiPatch
 from patchbay.qt import actions
 
 
 class Patchbay(QMainWindow):
     """MainWindow for Patchbay."""
 
-    def __init__(self):
+    def __init__(self, filename=None):
         super().__init__()
         self.patch = None
 
@@ -27,6 +25,7 @@ class Patchbay(QMainWindow):
         self.create_toolbar()
 
         self.restore_settings()
+        self.set_patch(filename)
         self.show()
 
     def create_menubar(self):
@@ -72,12 +71,15 @@ class Patchbay(QMainWindow):
         """Select and open a new patch to use."""
         f_name, _ = QFileDialog.getOpenFileName(self, caption='Select a patch to load',
                                                 filter='Patches (*.pbp, *.py)')
-        if f_name:
+        self.set_patch(f_name)
+
+    def set_patch(self, filename):
+        if filename is None:
+            return
+        patch_module = load_patch(filename)
+        if issubclass(patch_module.Patch, BaseUiPatch):
             self.close_patch()
-            spec = spec_from_file_location("PatchModule", f_name)
-            patch_module = module_from_spec(spec)
-            spec.loader.exec_module(patch_module)
-            self.patch = patch_module.Patch(weakref.ref(self))
+            self.patch = patch_module.Patch(self)
 
             self.setCentralWidget(self.patch.ui)
             self.actions['close'].setDisabled(False)

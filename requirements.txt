@@ -1,4 +1,5 @@
 asyncqt
+click
 matplotlib
 mock
 numpy

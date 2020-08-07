@@ -22,7 +22,7 @@ setuptools.setup(
                   'gui_scripts':
                       ['patchbay-ui = patchbay.__main__:main_gui']
                   },
-    install_requires=['matplotlib', 'numpy', 'pandas', 'pint'],
+    install_requires=['click', 'matplotlib', 'numpy', 'pandas', 'pint'],
     license='Fair Source 0.9 [10]',
     long_description=long_description,
     long_description_content_type='text/markdown',
