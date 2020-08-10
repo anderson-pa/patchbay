@@ -3,6 +3,8 @@ import sys
 
 import click
 
+from patchbay import root_path
+
 module_err_msg = ("The package '{package}' is required. "
                   "Try 'pip install {package}' from the command line.")
 
@@ -12,6 +14,7 @@ def launch_gui(filename=None):
     failed_requirements = []
     try:
         from PySide2.QtWidgets import QApplication
+        from PySide2.QtGui import QIcon
     except ModuleNotFoundError:
         failed_requirements.append('PySide2')
 
@@ -32,6 +35,7 @@ def launch_gui(filename=None):
     app.setOrganizationName('Andersonics')
     app.setOrganizationDomain('andersonics.llc')
     app.setApplicationName('patchbay')
+    app.setWindowIcon(QIcon(str(root_path / 'resources' / 'pb.svg')))
 
     asyncio.set_event_loop(QEventLoop(app))
 
