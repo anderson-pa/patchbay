@@ -3,7 +3,7 @@ import sys
 
 import click
 
-from patchbay import root_path
+from patchbay import root_path, __version__
 
 module_err_msg = ("The package '{package}' is required. "
                   "Try 'pip install {package}' from the command line.")
@@ -27,6 +27,14 @@ def launch_gui(filename=None):
         for package in failed_requirements:
             print(module_err_msg.format(package=package))
         sys.exit()
+
+    # if on Windows, change the taskbar icon
+    try:
+        from PySide2.QtWinExtras import QtWin
+        myappid = f'andersonics.llc.patchbay.{__version__}'
+        QtWin.setCurrentProcessExplicitAppUserModelID(myappid)
+    except ImportError:
+        pass
 
     from patchbay.qt.patchbay_ui import Patchbay
 
