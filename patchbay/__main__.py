@@ -66,9 +66,10 @@ def main(filename):
     :return:
     """
     print('Welcome to Patchbay!')
+    print(f'patchbay v{__version__}')
 
     return launch_gui(filename)
 
 
 if __name__ == '__main__':
-    main_gui()
+    main()

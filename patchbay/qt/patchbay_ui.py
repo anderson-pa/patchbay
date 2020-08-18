@@ -1,7 +1,7 @@
 from PySide2.QtCore import QSettings
 from PySide2.QtWidgets import QMainWindow, QFileDialog, QFrame
 
-from patchbay.patch import load_patch, BaseUiPatch
+from patchbay.patch import load_patch, close_patch, BaseUiPatch
 from patchbay.qt import actions
 
 
@@ -87,6 +87,8 @@ class Patchbay(QMainWindow):
     def close_patch(self):
         """Close the current patch."""
         if self.patch:
-            self.patch.close()
+            close_patch(self.patch)
+        self.patch = None
+
         self.setCentralWidget(QFrame())
         self.actions['close'].setDisabled(True)
