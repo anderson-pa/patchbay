@@ -1,1 +1,2 @@
 graft patchbay/resources
+include patchbay/matplotlibrc
