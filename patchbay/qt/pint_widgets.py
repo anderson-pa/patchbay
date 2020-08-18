@@ -1,3 +1,4 @@
+from PySide2.QtCore import Qt
 from PySide2.QtWidgets import QDoubleSpinBox, QSpinBox
 import pint
 
@@ -7,6 +8,7 @@ class PQSpinBox(QSpinBox):
         super().__init__()
         self.unit = unit
         self.setSuffix(f' {unit:~P}')
+        self.setAlignment(Qt.AlignRight)
 
     def setValue(self, val:pint.quantity):
         super().setValue(val.to(self.unit).magnitude)
@@ -20,6 +22,7 @@ class PQDoubleSpinBox(QDoubleSpinBox):
         super().__init__()
         self.unit = unit
         self.setSuffix(f' {unit:~P}')
+        self.setAlignment(Qt.AlignRight)
 
     def setValue(self, val:pint.quantity):
         super().setValue(val.to(self.unit).magnitude)
