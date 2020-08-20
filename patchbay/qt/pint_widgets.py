@@ -4,6 +4,7 @@ import pint
 
 
 class PQSpinBox(QSpinBox):
+    """Units-aware QSpinBox."""
     def __init__(self, unit:pint.unit):
         super().__init__()
         self.unit = unit
@@ -18,6 +19,7 @@ class PQSpinBox(QSpinBox):
 
 
 class PQDoubleSpinBox(QDoubleSpinBox):
+    """Units-aware QDoubleSpinBox."""
     def __init__(self, unit:pint.unit):
         super().__init__()
         self.unit = unit
