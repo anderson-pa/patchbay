@@ -8,18 +8,21 @@ _defs_file = path.join(path.dirname(__file__), 'subsystem_definitions.json')
 with open(_defs_file, 'r') as fp:
     prototype_definitions = json.load(fp)
 
-for subsystem, subsys_def in prototype_definitions.items():
-    for cmd in subsys_def['commands']:
-        # cmd is list: cmd_name, cmd_type, cmd_arg, kwargs
-        cmd[0] = f'{subsystem}.{cmd[0]}'
-
+for _, subsystem_def in prototype_definitions.items():
+    for cmd in subsystem_def['commands']:
+        # separate choices from a string to a list
         if cmd[1] == 'choice':
             cmd[2] = [arg.strip() for arg in cmd[2].split(',')]
 
-        for kw in ['query_keywords', 'write_keywords']:
-            if kw in cmd[3]:
-                cmd[3][kw] = [key.strip() for key in cmd[3][kw].split(',')]
-
+        # separate keywords from strings to a list if present
+        try:
+            for kw in ['query_keywords', 'write_keywords']:
+                try:
+                    cmd[3][kw] = [key.strip() for key in cmd[3][kw].split(',')]
+                except KeyError:
+                    pass
+        except IndexError:
+            pass
 
 ValueConverter = namedtuple('ValueConverter', 'query, write')
 
@@ -49,25 +52,48 @@ def add_can_querywrite_keywords(func):
 
 
 class SubsystemFactory:
-    converter_map = {}
-    choice_map = {}
+    converter_map = {name: None
+                     for name in ['error', 'bool', 'qty', 'choice']}
 
     @classmethod
-    def new_subsystem(cls, name):
+    def add_subsystem(cls, target, name=None, *, prototype=None,
+                      choice_maps=None, num_channels=1, zero_indexed=False):
         """Get a class definition for the requested subsystem.
 
-        :param name: name of the subsystem to generate
-        :return: new subsystem class
+        :param target: instance to add the subsystem to
+        :param name: name of the subsystem to add
+        :param prototype: alternate subsystem prototype to use if not standard
+        :param choice_maps: mappings for any choice commands
+        :param num_channels: if indexed, how many channels to create
+        :param zero_indexed: if True, the first channel will be 0 instead of 1
         """
-        prototype = prototype_definitions[name]
-        target = cls.get_new_subsystem(prototype['name'],
-                                       prototype['description'])
-        cls.add_cmds(prototype, target)
-        return target
+        if not prototype:
+            prototype = prototype_definitions[name]
+
+        subsystem = cls._get_new_subsystem(prototype['name'],
+                                           prototype['description'])
+        cls.add_cmds(prototype, subsystem, choice_maps)
+
+        # if the target is actually multiple channels, apply to each one
+        if isinstance(target, SubSystemDict):
+            targets = [t for t in target.values()]
+        else:
+            targets = [target]
+
+        for t in targets:
+            # if indexed, wrap with a custom dictionary
+            if prototype.get('indexed'):
+                start_index = 0 if zero_indexed else 1
+                ch_ids = [i + start_index for i in range(num_channels)]
+                channels = SubSystemDict({c: subsystem(t, channel_idx=c)
+                                          for c in ch_ids})
+                setattr(t, prototype['name'], channels)
+            else:
+                setattr(t, prototype['name'], subsystem(t))
 
     @classmethod
-    def add_subsystem(cls, name, target):
-        """Add a subsystem onto the given target.
+    def graft_subsystem(cls, name, target):
+        """Add subsystem properties and methods to the given target.
 
         :param name: name of the subsystem to add
         :param target: class to add commands to.
@@ -76,7 +102,7 @@ class SubsystemFactory:
         cls.add_cmds(prototype, target)
 
     @classmethod
-    def add_cmds(cls, prototype, target):
+    def add_cmds(cls, prototype, target, choice_maps=None):
         """Add commands to target from the prototype definition.
 
         Prototype is a dictionary with the keys: name, description, iterable,
@@ -90,37 +116,38 @@ class SubsystemFactory:
         :param prototype: definition of the subsystem commands
         :param target: class to add commands to.
         """
-        if not hasattr(target, 'keys'):
-            target.keys = {}
+        if not choice_maps:
+            choice_maps = {}
 
-        for cmd_name, cmd_type, cmd_arg, cmd_kwargs in prototype['commands']:
+        for cmd_name, cmd_type, cmd_arg, *cmd_kwargs in prototype['commands']:
             if cmd_type == 'choice':
-                choice_map = cls.choice_map[cmd_name]
+                choice_map = choice_maps[cmd_name]
                 cmd_arg = {key: val for key, val in choice_map.items()
                            if key in cmd_arg}
 
+            if not cmd_kwargs:
+                cmd_kwargs = {}
+            else:
+                cmd_kwargs = cmd_kwargs[0]
+
             cls.add_cmd(target, cmd_name, cmd_type, cmd_arg, **cmd_kwargs)
 
-        for name in prototype['subsystems']:
-            subsys = cls.new_subsystem(name)
-            target._subsystems[subsys.__name__.lower()] = subsys
-
     @classmethod
-    def add_cmd(cls, target, fullname, cmd_type, cmd_arg=None, *,
+    def add_cmd(cls, target, name, cmd_type, cmd_arg=None, *,
                 can_query=True, can_write=True,
                 query_keywords=None, write_keywords=None):
         """Add command parameters and methods to a class.
 
-        Add a properties and methods associated with `name` to `target`,
+        Add properties and methods associated with `name` to `target`,
         which is generally a subsystem class. These properties and methods
-        use the converter functions as post-/pre- processors to translate
+        use the converter functions as pre-/post- processors to translate
         values between Python and the device:
 
             Query -> query_converter(query_cmd())
             Write -> write_cmd(write_converter(value))
 
         If the command is query and write accessible, a property is added. A
-        get/set method is used if only query/write is allowed. Otherwise, an
+        get/set method is used if only query or write is allowed. Otherwise, an
         unadorned method is added. So:
 
             QW -> target.name [= value]
@@ -153,8 +180,6 @@ class SubsystemFactory:
         :param query_keywords: additional query keywords for this command
         :param write_keywords: additional write keywords for this command
         """
-        name = fullname.split('.')[-1]
-
         if cmd_type == 'choice':
             setattr(target, f'{name}_choices',
                     staticmethod(lambda: tuple(cmd_arg.keys())))
@@ -165,33 +190,33 @@ class SubsystemFactory:
         # set the property or function
         if all(converter):
             # write a property
-            prop_get = cls.query_func(fullname, converter.query)
-            prop_set = cls.write_func(fullname, converter.write)
+            prop_get = cls.query_func(name, converter.query)
+            prop_set = cls.write_func(name, converter.write)
             setattr(target, name, property(prop_get, prop_set))
         else:
             if converter.query is not None:
                 # only a query converter so create a get method
                 setattr(target, 'get_' + name,
-                        cls.query_func(fullname, converter.query))
+                        cls.query_func(name, converter.query))
             else:
                 # if only a write converter, create a get method
                 # if neither, its a plain command with no inputs
                 w_prefix = 'set_' if converter.write is not None else ''
                 setattr(target, w_prefix + name,
-                        cls.write_func(fullname, converter.write))
+                        cls.write_func(name, converter.write))
 
         # set additional properties for the keywords
         if query_keywords is None:
             query_keywords = []
         for key in query_keywords:
             setattr(target, f'{name}_{key}',
-                    property(cls.query_func(fullname, converter.query, key)))
+                    property(cls.query_func(name, converter.query, key)))
 
         if write_keywords is None:
             write_keywords = []
         for key in write_keywords:
             setattr(target, f'{name}_to_{key}',
-                    cls.write_func(fullname, None, key))
+                    cls.write_func(name, None, key))
 
     @staticmethod
     def query_func(name, converter, keyword=None):
@@ -201,8 +226,8 @@ class SubsystemFactory:
     def write_func(name, converter, keyword=None):
         raise NotImplementedError
 
-    @staticmethod
-    def get_new_subsystem(name, description=None):
+    @classmethod
+    def _get_new_subsystem(cls, name, description=None):
         """Create a new, blank class to build upon.
 
         :param name: name of the class
@@ -211,21 +236,48 @@ class SubsystemFactory:
         """
 
         new_subsystem = type(name.capitalize(), (object,), {})
-        new_subsystem.__init__ = __init__
+        new_subsystem.__init__ = subsystem_init
         new_subsystem.__doc__ = description
+        new_subsystem.__repr__ = subsystem_repr(name.capitalize())
         new_subsystem._device = _device
-        new_subsystem._subsystems = {}
+
+        cls.hook_get_new_subsystem(new_subsystem)
         return new_subsystem
 
+    @staticmethod
+    def hook_get_new_subsystem(new_subsystem):
+        """Method to allow subclasses to add commands during init."""
+        pass
 
-def __init__(self, parent):
+
+def subsystem_init(self, parent, channel_idx=None):
     self._parent = weakref.ref(parent)
-    self.keys = {}
+    self.channel_idx = channel_idx
 
-    for key, val in self._subsystems.items():
-        setattr(self, key, val(parent))
-        setattr(getattr(self, key), 'keys', self.keys)
+
+def subsystem_repr(name):
+    def repr(self):
+        if self.channel_idx:
+            return name + str(self.channel_idx)
+        else:
+            return name
+
+    return repr
 
 
 def _device(self):
     return self._parent().device
+
+
+class SubSystemDict(dict):
+    """Simple subclass of a dictionary.
+
+    This is used to hold multiple subsystem channels. A simple dict won't do
+    because it does not allow other attributes or methods to be added.
+    """
+
+    def __init__(self, *args):
+        dict.__init__(self, *args)
+
+    def rename_channel(self, old_key, new_key):
+        self[new_key] = self.pop(old_key)
