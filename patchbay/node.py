@@ -116,9 +116,6 @@ class HardwareNode(Node):
         self.device = device
         super().__init__(None)
 
-    def _device(self):
-        return self.device
-
 
 class Channel:
     """Channel represents a single input or output from a node.

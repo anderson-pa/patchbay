@@ -1,8 +1,12 @@
+import builtins
 import json
 import weakref
 from collections import namedtuple
-from functools import wraps
+from functools import wraps, lru_cache
 from os import path
+from types import MappingProxyType
+
+from patchbay import ureg
 
 _defs_file = path.join(path.dirname(__file__), 'subsystem_definitions.json')
 with open(_defs_file, 'r') as fp:
@@ -25,6 +29,9 @@ for _, subsystem_def in prototype_definitions.items():
             pass
 
 ValueConverter = namedtuple('ValueConverter', 'query, write')
+CmdDef = namedtuple('CommandDefinition',
+                    'name, cmd, cmd_type, cmd_arg, cmd_kwargs',
+                    defaults=(None, MappingProxyType({})))
 
 
 def add_can_querywrite_keywords(func):
@@ -51,28 +58,167 @@ def add_can_querywrite_keywords(func):
     return wrapped
 
 
+@add_can_querywrite_keywords
+def convert_bool(_=None):
+    """Get a converter for booleans.
+
+    Booleans are written to the device as 0/1 typically, so convert to int.
+    Queries typically return 0/1 as a string, so convert to int and then
+    boolean.
+
+    :param _: placeholder for signature matching to other converter functions
+    :return: ValueConverter for booleans
+    """
+    return ValueConverter(lambda v: (bool(int(v))), int)
+
+
+@add_can_querywrite_keywords
+def convert_num(dtype):
+    """Get a SCPI converter for unit-less numbers.
+
+    :param dtype: name of type to convert to (e.g. 'int', 'float')
+    :return: ValueConverter for nums
+    """
+    return ValueConverter(getattr(builtins, dtype), lambda v: v)
+
+
+@lru_cache()  # don't create multiple functions for the same conversion
+def qty_query_converter(unit_str):
+    """Get a query converter function for quantities.
+
+    Return a function that converts an input value to a quantity with the
+    given base unit.
+
+    :param unit_str: string representation of the unit for this converter
+    :return: function for quantity query conversions.
+    """
+
+    def query_converter(value):
+        """Return the value as a quantity with units of {unit}
+
+        :param value: value returned by the query
+        :return: value as a quantity with units of {unit}
+        """
+        return float(value) * ureg(unit_str)
+
+    query_converter.__doc__ = str(query_converter.__doc__).format(unit=unit_str)
+    return query_converter
+
+
+@lru_cache()  # don't create multiple functions for the same conversion
+def qty_write_converter(unit_str):
+    """Get a write converter function for quantities.
+
+    Return a function that converts an input quantity value to the magnitude
+    in the given base unit. The returned function will raises a ValueError if
+    the input value is not a pint quantity.
+
+    :param unit_str: string representation of the unit for this converter
+    :return: function for quantity write conversions.
+    """
+
+    def write_converter(quantity):
+        """Return the magnitude of quantity in terms of {unit}
+
+        :param quantity: pint quantity
+        :return: magnitude in terms of {unit}
+        """
+        try:
+            base_unit_value = quantity.to(ureg(unit_str))
+        except AttributeError:
+            raise ValueError(f'Value has no units.')
+        return base_unit_value.magnitude
+
+    write_converter.__doc__ = str(write_converter.__doc__).format(unit=unit_str)
+    return write_converter
+
+
+def value_to_percent(v):
+    return v * 100
+
+
+def value_from_percent(v):
+    return float(v) / 100
+
+
+@add_can_querywrite_keywords
+def convert_qty(unit_str):
+    """Get a converter for quantities.
+
+    Generate a converter to send and recieve unit-aware quantities to a
+    device. Values sent to the device only need to have the right
+    dimensionality so that pint can convert to the unit that the device
+    expects.
+
+    This uses the base unit without SI prefixes to avoid possible order or
+    magnitude errors. As an example, SCPI is case-insensitive and so `milli`
+    and `Mega` are ambiguous with one usually assumed over the other.
+
+    Percentages could be converted to dimensionless pint quantities but for
+    now just treated as regular floats. Not clear that the extra overhead is
+    useful.
+
+    :param unit_str: string representation of the unit for this command
+    :return: ValueConverter for quantities
+    """
+    if unit_str == '%':
+        converter = ValueConverter(value_from_percent, value_to_percent)
+    else:
+        converter = ValueConverter(qty_query_converter(unit_str),
+                                   qty_write_converter(unit_str))
+    return converter
+
+
+@add_can_querywrite_keywords
+def convert_choice(choices):
+    """Get a converter for choice lists.
+
+    Some commands allow a restricted set of choices (essentially an enum).
+    Use a list if the keywords for the instrument and the Python interface
+    should be the same. Otherwise pass a dictionary with Python names for the
+    keys and instrument names for the values.
+
+    :param choices: list or dict of choice options
+    :return: ValueConverter for a list of choices
+    """
+    try:
+        inv_choices = {v: k for k, v in choices.items()}
+    except AttributeError:
+        inv_choices = choices
+
+    return ValueConverter(lambda v: inv_choices[v], lambda v: choices[v])
+
+
 class SubsystemFactory:
-    converter_map = {name: None
-                     for name in ['error', 'bool', 'qty', 'choice']}
+    converters = {}
 
     @classmethod
-    def add_subsystem(cls, target, name=None, *, prototype=None,
-                      choice_maps=None, num_channels=1, zero_indexed=False):
+    def get_converter(cls, name):
+        converter = None
+        try:
+            converter = cls.converters[name]
+        except KeyError:
+            converter = {'bool': convert_bool,
+                         'choice': convert_choice,
+                         'qty': convert_qty,
+                         }[name]
+        return converter
+
+    @classmethod
+    def add_subsystem(cls, target, name, commands,
+                      description=None, num_channels=None, zero_indexed=False,
+                      ):
         """Get a class definition for the requested subsystem.
 
         :param target: instance to add the subsystem to
         :param name: name of the subsystem to add
-        :param prototype: alternate subsystem prototype to use if not standard
-        :param choice_maps: mappings for any choice commands
-        :param num_channels: if indexed, how many channels to create
+        :param commands: list of commands (CmdDefs) to add to the subsystem
+        :param description: string describing the subsystem
+        :param num_channels: how many channels to create or None if not indexed
         :param zero_indexed: if True, the first channel will be 0 instead of 1
         """
-        if not prototype:
-            prototype = prototype_definitions[name]
-
-        subsystem = cls._get_new_subsystem(prototype['name'],
-                                           prototype['description'])
-        cls.add_cmds(prototype, subsystem, choice_maps)
+        subsystem = cls._get_new_subsystem(name, description)
+        cls.add_cmds(subsystem, commands)
 
         # if the target is actually multiple channels, apply to each one
         if isinstance(target, SubSystemDict):
@@ -82,61 +228,39 @@ class SubsystemFactory:
 
         for t in targets:
             # if indexed, wrap with a custom dictionary
-            if prototype.get('indexed'):
+            if num_channels is not None:
                 start_index = 0 if zero_indexed else 1
                 ch_ids = [i + start_index for i in range(num_channels)]
-                channels = SubSystemDict({c: subsystem(t, channel_idx=c)
+                channels = SubSystemDict({c: subsystem(t, idx=c)
                                           for c in ch_ids})
-                setattr(t, prototype['name'], channels)
+                setattr(t, name, channels)
             else:
-                setattr(t, prototype['name'], subsystem(t))
+                setattr(t, name, subsystem(t))
 
     @classmethod
-    def graft_subsystem(cls, name, target):
-        """Add subsystem properties and methods to the given target.
+    def add_cmds(cls, target, command_definitions):
+        """Add commands to target from command definitions.
 
-        :param name: name of the subsystem to add
+        `command_definitions` is a list of `CmdDefs` (or compatible lists),
+        each with the following items:
+            * name: base name of the command
+            * cmd: command function or syntax (SubClass specific usage)
+            * cmd_type: error, bool, qty, choice, or user defined type
+            * cmd_arg: any args associated with the command type
+            * cmd_kwargs: modifiers and keywords for the commands
+
         :param target: class to add commands to.
+        :param command_definitions: list of CmdDefs
         """
-        prototype = prototype_definitions[name]
-        cls.add_cmds(prototype, target)
+        for c in command_definitions:
+            *args, kwargs = CmdDef(*c)
+            cls.add_cmd(target, *args, **kwargs)
 
     @classmethod
-    def add_cmds(cls, prototype, target, choice_maps=None):
-        """Add commands to target from the prototype definition.
-
-        Prototype is a dictionary with the keys: name, description, iterable,
-        commands, subsystems.
-
-        Each command definition is an iterable with elements: name,
-        converter_type, converter_arg, kwargs
-
-        todo: full writeup of the format once this has been refined.
-
-        :param prototype: definition of the subsystem commands
-        :param target: class to add commands to.
-        """
-        if not choice_maps:
-            choice_maps = {}
-
-        for cmd_name, cmd_type, cmd_arg, *cmd_kwargs in prototype['commands']:
-            if cmd_type == 'choice':
-                choice_map = choice_maps[cmd_name]
-                cmd_arg = {key: val for key, val in choice_map.items()
-                           if key in cmd_arg}
-
-            if not cmd_kwargs:
-                cmd_kwargs = {}
-            else:
-                cmd_kwargs = cmd_kwargs[0]
-
-            cls.add_cmd(target, cmd_name, cmd_type, cmd_arg, **cmd_kwargs)
-
-    @classmethod
-    def add_cmd(cls, target, name, cmd_type, cmd_arg=None, *,
+    def add_cmd(cls, target, name, cmd, cmd_type, cmd_arg=None, *,
                 can_query=True, can_write=True,
                 query_keywords=None, write_keywords=None):
-        """Add command parameters and methods to a class.
+        """Add command properties and methods to a class.
 
         Add properties and methods associated with `name` to `target`,
         which is generally a subsystem class. These properties and methods
@@ -172,7 +296,8 @@ class SubsystemFactory:
         list of the allowed choices: `target.name_choices()`
 
         :param target: class where the commands will be added
-        :param fullname: full lookup name for the attributes and methods
+        :param name: base name for the attributes and methods
+        :param cmd: command function or syntax (SubClass specific usage)
         :param cmd_type: ValueConverter specific for device and argument
         :param cmd_arg: argument passed to converter constructor, if any
         :param can_query: if True, a query property is added
@@ -180,50 +305,55 @@ class SubsystemFactory:
         :param query_keywords: additional query keywords for this command
         :param write_keywords: additional write keywords for this command
         """
+        # modify the class itself if target is an instance
+        if not isinstance(target, type):
+            target = target.__class__
+
+        # for choice types, add a method to list the choices
         if cmd_type == 'choice':
             setattr(target, f'{name}_choices',
                     staticmethod(lambda: tuple(cmd_arg.keys())))
 
-        c_func = cls.converter_map[cmd_type]
+        c_func = cls.get_converter(cmd_type)
         converter = c_func(cmd_arg, can_query=can_query, can_write=can_write)
 
         # set the property or function
         if all(converter):
             # write a property
-            prop_get = cls.query_func(name, converter.query)
-            prop_set = cls.write_func(name, converter.write)
+            prop_get = cls.query_func(name, converter.query, cmd)
+            prop_set = cls.write_func(name, converter.write, cmd)
             setattr(target, name, property(prop_get, prop_set))
         else:
             if converter.query is not None:
                 # only a query converter so create a get method
                 setattr(target, 'get_' + name,
-                        cls.query_func(name, converter.query))
+                        cls.query_func(name, converter.query, cmd))
             else:
                 # if only a write converter, create a get method
                 # if neither, its a plain command with no inputs
                 w_prefix = 'set_' if converter.write is not None else ''
                 setattr(target, w_prefix + name,
-                        cls.write_func(name, converter.write))
+                        cls.write_func(name, converter.write, cmd))
 
         # set additional properties for the keywords
         if query_keywords is None:
             query_keywords = []
         for key in query_keywords:
             setattr(target, f'{name}_{key}',
-                    property(cls.query_func(name, converter.query, key)))
+                    property(cls.query_func(name, converter.query, cmd, key)))
 
         if write_keywords is None:
             write_keywords = []
         for key in write_keywords:
             setattr(target, f'{name}_to_{key}',
-                    cls.write_func(name, None, key))
+                    cls.write_func(name, None, cmd, key))
 
     @staticmethod
-    def query_func(name, converter, keyword=None):
+    def query_func(name, converter, command, keyword=None):
         raise NotImplementedError
 
     @staticmethod
-    def write_func(name, converter, keyword=None):
+    def write_func(name, converter, command, keyword=None):
         raise NotImplementedError
 
     @classmethod
@@ -237,9 +367,10 @@ class SubsystemFactory:
 
         new_subsystem = type(name.capitalize(), (object,), {})
         new_subsystem.__init__ = subsystem_init
+        new_subsystem.subsystem_type = name.capitalize()
         new_subsystem.__doc__ = description
-        new_subsystem.__repr__ = subsystem_repr(name.capitalize())
-        new_subsystem._device = _device
+        new_subsystem.__repr__ = subsystem_repr
+        setattr(new_subsystem, 'device', property(subsystem_get_device, None))
 
         cls.hook_get_new_subsystem(new_subsystem)
         return new_subsystem
@@ -250,22 +381,21 @@ class SubsystemFactory:
         pass
 
 
-def subsystem_init(self, parent, channel_idx=None):
+def subsystem_init(self, parent, idx=None):
     self._parent = weakref.ref(parent)
-    self.channel_idx = channel_idx
+    self.subsystem_idx = idx
 
 
-def subsystem_repr(name):
-    def repr(self):
-        if self.channel_idx:
-            return name + str(self.channel_idx)
-        else:
-            return name
-
+def subsystem_repr(self):
+    repr = self.subsystem_type
+    try:
+        repr += f' {self.subsystem_idx}'
+    except AttributeError:
+        pass
     return repr
 
 
-def _device(self):
+def subsystem_get_device(self):
     return self._parent().device
 
 

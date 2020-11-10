@@ -18,7 +18,7 @@
       ]
   },
 
-  "amplitude_modulation":
+  "am":
   {
     "name": "am",
     "description":  "Signal generator amplitude modulation.",
