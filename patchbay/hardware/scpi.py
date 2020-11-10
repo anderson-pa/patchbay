@@ -65,9 +65,31 @@ scpi_cmd_map = {
 }
 
 
+def get_scpi_base(self):
+    if self.subsystem_idx:
+        return f'{self._scpi_base}{self.subsystem_idx}'
+    else:
+        return self._scpi_base
+
+
 class ScpiFactory(SubsystemFactory):
     converters = {'error': scpi_error}
     choice_maps = scpi_choice_maps
+
+    @classmethod
+    def add_subsystem(cls, target, name, commands,
+                      description=None, num_channels=None, zero_indexed=False,
+                      **kwargs):
+        subsystem = super().add_subsystem(target, name, commands, description,
+                                          num_channels, zero_indexed)
+        scpi_base = ':'.join([getattr(target, 'scpi_base', ''),
+                              kwargs.get('scpi_base', name)])
+        subsystem._scpi_base = scpi_base
+        return subsystem
+
+    @staticmethod
+    def hook_get_new_subsystem(new_subsystem):
+        setattr(new_subsystem, 'scpi_base', property(get_scpi_base, None))
 
     @staticmethod
     def query_func(name, converter, command, keyword=None):
@@ -115,7 +137,8 @@ def _query_func(command, converter):
 
     def query_func(self):
         return converter(
-            self.device.query(command.format(source=self.subsystem_idx)))
+            self.device.query(':'.join([self.scpi_base, command]))
+        )
 
     return query_func
 
@@ -130,15 +153,15 @@ def _write_func(command, converter):
     if '{' in command:
         if converter is None:
             def write_func(self):
-                self.device.write(command.format(source=self.subsystem_idx))
+                self.device.write(':'.join([self.scpi_base, command]))
         else:
             def write_func(self, value):
                 value = converter(value)
-                self.device.write(command.format(source=self.subsystem_idx,
-                                                 value=value))
+                self.device.write(':'.join([self.scpi_base,
+                                            command.format(value=value)]))
     else:
         def write_func(self):
-            self.device.write(command)
+            self.device.write(':'.join([self.scpi_base, command]))
     return write_func
 
 

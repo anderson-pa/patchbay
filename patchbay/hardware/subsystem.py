@@ -236,6 +236,7 @@ class SubsystemFactory:
                 setattr(t, name, channels)
             else:
                 setattr(t, name, subsystem(t))
+        return subsystem
 
     @classmethod
     def add_cmds(cls, target, command_definitions):
