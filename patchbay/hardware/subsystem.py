@@ -324,17 +324,29 @@ class SubsystemFactory:
             prop_get = cls.query_func(name, converter.query, cmd)
             prop_set = cls.write_func(name, converter.write, cmd)
             setattr(target, name, property(prop_get, prop_set))
-        else:
-            if converter.query is not None:
-                # only a query converter so create a get method
-                setattr(target, 'get_' + name,
-                        cls.query_func(name, converter.query, cmd))
+        elif converter.query is not None:
+            # only a query converter so create a get method unless a write
+            # method already exists
+            prop_get = cls.query_func(name, converter.query, cmd)
+            if hasattr(target, f'set_{name}'):
+                prop_set = getattr(target, f'set_{name}')
+                setattr(target, name, property(prop_get, prop_set))
+                delattr(target, f'set_{name}')
             else:
-                # if only a write converter, create a get method
-                # if neither, its a plain command with no inputs
-                w_prefix = 'set_' if converter.write is not None else ''
-                setattr(target, w_prefix + name,
-                        cls.write_func(name, converter.write, cmd))
+                setattr(target, f'get_{name}', prop_get)
+        elif converter.write is not None:
+            # only a write converter so create a set method unless a query
+            # method already exists
+            prop_set = cls.write_func(name, converter.write, cmd)
+            if hasattr(target, f'get_{name}'):
+                prop_get = getattr(target, f'get_{name}')
+                setattr(target, name, property(prop_get, prop_set))
+                delattr(target, f'get_{name}')
+            else:
+                setattr(target, f'set_{name}', prop_set)
+        else:
+            # if neither query nor write converter, add simple command
+            setattr(target, name, cls.write_func(name, converter.write, cmd))
 
         # set additional properties for the keywords
         if query_keywords is None:
