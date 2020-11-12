@@ -92,7 +92,7 @@ class ScpiFactory(SubsystemFactory):
         setattr(new_subsystem, 'scpi_base', property(get_scpi_base, None))
 
     @staticmethod
-    def query_func(name, converter, command, keyword=None):
+    def query_func(command, converter, keyword=None):
         try:
             cmd = _build_command(command, keyword)
             return _query_func(cmd, converter)
@@ -100,7 +100,7 @@ class ScpiFactory(SubsystemFactory):
             return not_implemented_func
 
     @staticmethod
-    def write_func(name, converter, command, keyword=None):
+    def write_func(command, converter, keyword=None):
         try:
             cmd = _build_command(command, keyword, is_query=False)
             return _write_func(cmd, converter)

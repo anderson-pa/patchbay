@@ -5,6 +5,7 @@ from collections import namedtuple
 from functools import wraps, lru_cache
 from os import path
 from types import MappingProxyType
+from pint import DimensionalityError
 
 from patchbay import ureg
 
@@ -69,12 +70,14 @@ def convert_bool(_=None):
     :param _: placeholder for signature matching to other converter functions
     :return: ValueConverter for booleans
     """
-    return ValueConverter(lambda v: (bool(int(v))), int)
+    return ValueConverter(lambda v: bool(int(v)), int)
 
 
 @add_can_querywrite_keywords
 def convert_num(dtype):
-    """Get a SCPI converter for unit-less numbers.
+    """Get a converter for unit-less numbers.
+
+    This converter is dumb and maybe not necessary.
 
     :param dtype: name of type to convert to (e.g. 'int', 'float')
     :return: ValueConverter for nums
@@ -126,7 +129,7 @@ def qty_write_converter(unit_str):
         try:
             base_unit_value = quantity.to(ureg(unit_str))
         except AttributeError:
-            raise ValueError(f'Value has no units.')
+            raise DimensionalityError(unit_str, None)
         return base_unit_value.magnitude
 
     write_converter.__doc__ = str(write_converter.__doc__).format(unit=unit_str)
@@ -323,13 +326,13 @@ class SubsystemFactory:
         # set the property or function
         if all(converter):
             # write a property
-            prop_get = cls.query_func(name, converter.query, cmd)
-            prop_set = cls.write_func(name, converter.write, cmd)
+            prop_get = cls.query_func(cmd, converter.query)
+            prop_set = cls.write_func(cmd, converter.write)
             setattr(target, name, property(prop_get, prop_set))
         elif converter.query is not None:
             # only a query converter so create a get method unless a write
             # method already exists
-            prop_get = cls.query_func(name, converter.query, cmd)
+            prop_get = cls.query_func(cmd, converter.query)
             if hasattr(target, f'set_{name}'):
                 prop_set = getattr(target, f'set_{name}')
                 setattr(target, name, property(prop_get, prop_set))
@@ -342,11 +345,11 @@ class SubsystemFactory:
 
             # if cmds are split (only supported for bool type for now)
             if split_cmds:
-                setters = {key: cls.write_func(name, None, c, '')
+                setters = {key: cls.write_func(c, None, '')
                            for key, c in zip([True, False], cmd)}
                 prop_set = lambda s, x: setters[x](s)
             else:
-                prop_set = cls.write_func(name, converter.write, cmd)
+                prop_set = cls.write_func(cmd, converter.write)
 
             if hasattr(target, f'get_{name}'):
                 prop_get = getattr(target, f'get_{name}')
@@ -356,27 +359,27 @@ class SubsystemFactory:
                 setattr(target, f'set_{name}', prop_set)
         else:
             # if neither query nor write converter, add simple command
-            setattr(target, name, cls.write_func(name, converter.write, cmd))
+            setattr(target, name, cls.write_func(cmd, converter.write))
 
         # set additional properties for the keywords
-        if query_keywords is None:
+        if query_keywords is None or not can_query:
             query_keywords = []
         for key in query_keywords:
             setattr(target, f'{name}_{key}',
-                    property(cls.query_func(name, converter.query, cmd, key)))
+                    property(cls.query_func(cmd, converter.query, key)))
 
-        if write_keywords is None:
+        if write_keywords is None or not can_write:
             write_keywords = []
         for key in write_keywords:
             setattr(target, f'{name}_to_{key}',
-                    cls.write_func(name, None, cmd, key))
+                    cls.write_func(cmd, None, key))
 
     @staticmethod
-    def query_func(name, converter, command, keyword=None):
+    def query_func(command, converter, keyword=None):
         raise NotImplementedError
 
     @staticmethod
-    def write_func(name, converter, command, keyword=None):
+    def write_func(command, converter, keyword=None):
         raise NotImplementedError
 
     @classmethod
