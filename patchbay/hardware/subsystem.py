@@ -259,7 +259,7 @@ class SubsystemFactory:
 
     @classmethod
     def add_cmd(cls, target, name, cmd, cmd_type, cmd_arg=None, *,
-                can_query=True, can_write=True,
+                can_query=True, can_write=True, split_cmds=False,
                 query_keywords=None, write_keywords=None):
         """Add command properties and methods to a class.
 
@@ -303,6 +303,8 @@ class SubsystemFactory:
         :param cmd_arg: argument passed to converter constructor, if any
         :param can_query: if True, a query property is added
         :param can_write: if True, a write property is added
+        :param split_cmds: True if separate commands are needed (currently
+        only implemented for bool write)
         :param query_keywords: additional query keywords for this command
         :param write_keywords: additional write keywords for this command
         """
@@ -337,7 +339,15 @@ class SubsystemFactory:
         elif converter.write is not None:
             # only a write converter so create a set method unless a query
             # method already exists
-            prop_set = cls.write_func(name, converter.write, cmd)
+
+            # if cmds are split (only supported for bool type for now)
+            if split_cmds:
+                setters = {key: cls.write_func(name, None, c, '')
+                           for key, c in zip([True, False], cmd)}
+                prop_set = lambda s, x: setters[x](s)
+            else:
+                prop_set = cls.write_func(name, converter.write, cmd)
+
             if hasattr(target, f'get_{name}'):
                 prop_get = getattr(target, f'get_{name}')
                 setattr(target, name, property(prop_get, prop_set))

@@ -117,6 +117,7 @@ def _build_command(base_cmd, post=None, *, is_query=True):
     :return: string command
     """
     q = '?' if is_query else ''
+
     if post is not None:
         post = ' ' + post
     elif not is_query:
@@ -124,7 +125,7 @@ def _build_command(base_cmd, post=None, *, is_query=True):
     else:
         post = ''
 
-    return f'{base_cmd}{q}{post}'
+    return f'{base_cmd}{q}{post}'.strip()
 
 
 def _query_func(command, converter):
