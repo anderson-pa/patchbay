@@ -71,7 +71,8 @@ class Patchbay(QMainWindow):
         """Select and open a new patch to use."""
         f_name, _ = QFileDialog.getOpenFileName(self, caption='Select a patch to load',
                                                 filter='Patches (*.pbp, *.py)')
-        self.set_patch(f_name)
+        if f_name:
+            self.set_patch(f_name)
 
     def set_patch(self, filename):
         if filename is None:
