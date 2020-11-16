@@ -82,6 +82,7 @@ class Patchbay(QMainWindow):
             self.patch = patch_module.Patch(self)
 
             self.setCentralWidget(self.patch.ui)
+            self.setWindowTitle(self.patch.title)
             self.actions['close'].setDisabled(False)
 
     def close_patch(self):
@@ -91,4 +92,5 @@ class Patchbay(QMainWindow):
         self.patch = None
 
         self.setCentralWidget(QFrame())
+        self.setWindowTitle('patchbay')
         self.actions['close'].setDisabled(True)

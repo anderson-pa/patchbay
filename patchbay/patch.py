@@ -22,6 +22,7 @@ class BaseUiPatch(BasePatch):
         super().__init__(parent)
         self.ui = QFrame()
         self.widgets = {}
+        self.title = 'Untitled Patch'
 
 
 def load_patch(f_name):
