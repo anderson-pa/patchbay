@@ -135,13 +135,17 @@ def _query_func(command, converter):
     :param converter: converter to use for translation
     :return: SCPI query function
     """
+    def query_abs_func(self):
+        return converter(
+            self.device.query(command.format(idx=self.subsystem_idx))
+        )
 
     def query_func(self):
         return converter(
             self.device.query(':'.join([self.scpi_base, command]))
         )
 
-    return query_func
+    return query_abs_func if command.startswith(':') else query_func
 
 
 def _write_func(command, converter):
@@ -151,18 +155,29 @@ def _write_func(command, converter):
     :param converter: converter to use for translation
     :return: SCPI write function
     """
-    if '{' in command:
-        if converter is None:
-            def write_func(self):
-                self.device.write(':'.join([self.scpi_base, command]))
+
+    if '{' in command and converter:
+        if command.startswith(':'):
+            # absolute command with value input
+            def write_func(self, value):
+                self.device.write(command.format(value=converter(value),
+                                                 idx=self.subsystem_idx))
         else:
+            # relative command with value input
             def write_func(self, value):
                 value = converter(value)
                 self.device.write(':'.join([self.scpi_base,
                                             command.format(value=value)]))
     else:
-        def write_func(self):
-            self.device.write(':'.join([self.scpi_base, command]))
+        if command.startswith(':'):
+            # absolute command, no value input
+            def write_func(self):
+                self.device.write(command.format(idx=self.subsystem_idx))
+        else:
+            # relative command, no value input
+            def write_func(self):
+                self.device.write(':'.join([self.scpi_base, command]))
+
     return write_func
 
 
