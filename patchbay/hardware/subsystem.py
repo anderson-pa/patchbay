@@ -7,6 +7,7 @@ from os import path
 from types import MappingProxyType
 from pint import DimensionalityError
 
+from node import Node
 from patchbay import ureg
 
 _defs_file = path.join(path.dirname(__file__), 'subsystem_definitions.json')
@@ -190,6 +191,18 @@ def convert_choice(choices):
         inv_choices = choices
 
     return ValueConverter(lambda v: inv_choices[v], lambda v: choices[v])
+
+
+class HardwareNode(Node):
+    """An instrument is a node that is associated with a physical device."""
+
+    def __init__(self, device):
+        super().__init__()
+        self.device = device
+        self.make = ''
+        self.model = ''
+        self.serial = ''
+        self.versions = {}
 
 
 class SubsystemFactory:

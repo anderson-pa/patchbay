@@ -1,4 +1,5 @@
 from patchbay.hardware.subsystem import (ValueConverter, SubsystemFactory,
+                                         HardwareNode,
                                          add_can_querywrite_keywords)
 
 
@@ -70,6 +71,28 @@ def get_scpi_base(self):
         return f'{self._scpi_base}{self.subsystem_idx}'
     else:
         return self._scpi_base
+
+
+class ScpiNode(HardwareNode):
+    def __init__(self, device):
+        super().__init__(device)
+        idn = [s.strip() for s in self.device.query('*idn?').split(',')]
+        self.make = self._get_make(idn[0])
+        self.model = self._get_model(idn[1])
+        self.serial = self._get_serial(idn[2])
+        self.versions = self._get_versions(idn[3])
+
+    def _get_make(self, idn_part):
+        return idn_part
+
+    def _get_model(self, idn_part):
+        return idn_part
+
+    def _get_serial(self, idn_part):
+        return idn_part
+
+    def _get_versions(self, idn_part):
+        return idn_part
 
 
 class ScpiFactory(SubsystemFactory):
