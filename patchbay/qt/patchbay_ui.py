@@ -64,6 +64,8 @@ class Patchbay(QMainWindow):
 
     def closeEvent(self, event):
         """Override parent closeEvent to save settings first."""
+        if self.patch:
+            close_patch(self.patch)
         self.save_settings()
         QMainWindow.closeEvent(self, event)
 
