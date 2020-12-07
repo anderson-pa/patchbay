@@ -107,7 +107,7 @@ class ScpiFactory(SubsystemFactory):
                                           num_channels, zero_indexed)
         scpi_base = ':'.join([getattr(target, 'scpi_base', ''),
                               kwargs.get('scpi_base', name)])
-        subsystem._scpi_base = scpi_base
+        subsystem._scpi_base = scpi_base.lstrip(':')
         return subsystem
 
     @staticmethod
