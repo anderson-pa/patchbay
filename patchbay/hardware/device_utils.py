@@ -3,11 +3,18 @@ from collections import namedtuple
 from importlib import import_module
 
 mfr_nice_name = {
+    'Agilent Technologies': 'Agilent',
     'HEWLETT-PACKARD': 'HP',
+    'Magna-Power Electronics Inc.': 'MagnaPower',
+    'TEKTRONIX': 'Tektronix',
 }
 
 device_series_type = {
+    ('Agilent', '33522B'): ('33000', 'SignalGenerator'),
+    ('Agilent', 'N3300A'): ('N3300', 'Load'),
     ('HP', '33120A'): ('33120A', 'SignalGenerator'),
+    ('MagnaPower', 'SL60-25'): ('SL', 'Supply'),
+    ('Tektronix', 'MSO44'): ('MSO', 'Oscilloscope'),
 }
 
 
