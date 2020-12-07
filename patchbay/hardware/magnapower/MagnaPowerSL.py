@@ -4,9 +4,6 @@ from patchbay.hardware.subsystem import CmdDef
 prototype_definitions = {}
 
 
-# Magna-Power Electronics Inc., SL60-25, S/N:1164-2572, F/W:8.7\r\n
-# IP: 192.168.50.204
-
 class MagnaPowerSLSupply(scpi.ScpiNode):
 
     def __init__(self, device):
@@ -17,12 +14,14 @@ class MagnaPowerSLSupply(scpi.ScpiNode):
         scpi.ScpiFactory.add_subsystem(self, 'output', output_cmds)
         scpi.ScpiFactory.add_subsystem(self, 'source', source_cmds)
 
+    def _get_serial(self, idn_part):
+        # device returns field as 'S/N:xxxx-yyyy', cut off prefix including colon
+        return idn_part.split(':')[-1]
+
     def _get_versions(self, v_string):
-        # names = ['Firmware', 'Hardware']
-        # versions = {n: v for n, v in zip(names, v_string.split('-'))}
-        versions = {}
-        # scpi version
-        versions['SCPI'] = self.device.query('system:version?')
+        names = ['Firmware', 'Hardware']
+        versions = self.device.query('system:version?').split(', ')
+        versions = {n: v.split(' ')[-1] for n, v in zip(names, versions)}
         return versions
 
 
