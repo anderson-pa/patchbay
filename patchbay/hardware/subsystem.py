@@ -7,7 +7,7 @@ from os import path
 from types import MappingProxyType
 from pint import DimensionalityError
 
-from node import Node
+from patchbay.node import Node
 from patchbay import ureg
 
 _defs_file = path.join(path.dirname(__file__), 'subsystem_definitions.json')
