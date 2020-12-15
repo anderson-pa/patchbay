@@ -76,7 +76,17 @@ def get_scpi_base(self):
 class ScpiNode(HardwareNode):
     def __init__(self, device):
         super().__init__(device)
-        idn = [s.strip() for s in self.device.query('*idn?').split(',')]
+
+        idn = device.query('*idn?')
+
+        # find and set the termination characters if they appear in response
+        for term_chrs in ['\r\n', '\r', '\n']:
+            if term_chrs in idn[-2:]:
+                device.read_termination = term_chrs
+                idn = idn.rstrip(term_chrs)
+                break
+
+        idn = [s.strip() for s in idn.split(',')]
         self.make = self._get_make(idn[0])
         self.model = self._get_model(idn[1])
         self.serial = self._get_serial(idn[2])

@@ -2,6 +2,7 @@ import pyvisa
 
 from patchbay.hardware.device_utils import (DeviceDescriptor, ResourceManager,
                                             get_device_handler)
+from patchbay.hardware.scpi import ScpiNode
 
 
 class PyvisaManager(ResourceManager):
@@ -18,7 +19,11 @@ class PyvisaManager(ResourceManager):
         self.devices = devices
 
     def open_scpi_resource(self, address):
-        device = self.rm.open_resource(address)
+        try:
+            device = self.rm.open_resource(address)
+        except pyvisa.errors.VisaIOError:
+            return None, None
+
         original_timeout = device.timeout
         device.timeout = 200
 
@@ -29,15 +34,8 @@ class PyvisaManager(ResourceManager):
 
         device.timeout = original_timeout
 
-        # find and set the termination characters if they appear in response
-        for term_chrs in ['\r\n', '\r', '\n']:
-            if term_chrs in idn_response[-2:]:
-                device.read_termination = term_chrs
-                idn_response = idn_response.rstrip(term_chrs)
-                break
-        idn_response = idn_response.split(',')
-
-        device_handler = get_device_handler(*idn_response[:2])
+        scpi_node = ScpiNode(device)
+        device_handler = get_device_handler(scpi_node.make, scpi_node.model)
 
         if device_handler is not None:
             device = device_handler(device)
