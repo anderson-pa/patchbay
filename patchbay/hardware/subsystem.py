@@ -10,25 +10,25 @@ from pint import DimensionalityError
 from patchbay.node import Node
 from patchbay import ureg
 
-_defs_file = path.join(path.dirname(__file__), 'subsystem_definitions.json')
-with open(_defs_file, 'r') as fp:
-    prototype_definitions = json.load(fp)
+# _defs_file = path.join(path.dirname(__file__), 'subsystem_definitions.json')
+# with open(_defs_file, 'r') as fp:
+#     prototype_definitions = json.load(fp)
 
-for _, subsystem_def in prototype_definitions.items():
-    for cmd in subsystem_def['commands']:
-        # separate choices from a string to a list
-        if cmd[1] == 'choice':
-            cmd[2] = [arg.strip() for arg in cmd[2].split(',')]
-
-        # separate keywords from strings to a list if present
-        try:
-            for kw in ['query_keywords', 'write_keywords']:
-                try:
-                    cmd[3][kw] = [key.strip() for key in cmd[3][kw].split(',')]
-                except KeyError:
-                    pass
-        except IndexError:
-            pass
+# for _, subsystem_def in prototype_definitions.items():
+#     for cmd in subsystem_def['commands']:
+#         # separate choices from a string to a list
+#         if cmd[1] == 'choice':
+#             cmd[2] = [arg.strip() for arg in cmd[2].split(',')]
+#
+#         # separate keywords from strings to a list if present
+#         try:
+#             for kw in ['query_keywords', 'write_keywords']:
+#                 try:
+#                     cmd[3][kw] = [key.strip() for key in cmd[3][kw].split(',')]
+#                 except KeyError:
+#                     pass
+#         except IndexError:
+#             pass
 
 ValueConverter = namedtuple('ValueConverter', 'query, write')
 CmdDef = namedtuple('CommandDefinition',
@@ -216,6 +216,7 @@ class SubsystemFactory:
         except KeyError:
             converter = {'bool': convert_bool,
                          'choice': convert_choice,
+                         'number': convert_num,
                          'qty': convert_qty,
                          }[name]
         return converter
