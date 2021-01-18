@@ -1,14 +1,13 @@
 import builtins
-import json
 import weakref
 from collections import namedtuple
 from functools import wraps, lru_cache
-from os import path
 from types import MappingProxyType
+
 from pint import DimensionalityError
 
-from patchbay.node import Node
 from patchbay import ureg
+from patchbay.node import Node
 
 # _defs_file = path.join(path.dirname(__file__), 'subsystem_definitions.json')
 # with open(_defs_file, 'r') as fp:
@@ -261,11 +260,12 @@ class SubsystemFactory:
 
         `command_definitions` is a list of `CmdDefs` (or compatible lists),
         each with the following items:
-            * name: base name of the command
-            * cmd: command function or syntax (SubClass specific usage)
-            * cmd_type: error, bool, qty, choice, or user defined type
-            * cmd_arg: any args associated with the command type
-            * cmd_kwargs: modifiers and keywords for the commands
+
+        * name: base name of the command
+        * cmd: command function or syntax (SubClass specific usage)
+        * cmd_type: error, bool, qty, choice, or user defined type
+        * cmd_arg: any args associated with the command type
+        * cmd_kwargs: modifiers and keywords for the commands
 
         :param target: class to add commands to.
         :param command_definitions: list of CmdDefs
@@ -320,8 +320,8 @@ class SubsystemFactory:
         :param cmd_arg: argument passed to converter constructor, if any
         :param can_query: if True, a query property is added
         :param can_write: if True, a write property is added
-        :param split_cmd: True if separate commands are needed (currently
-        only implemented for bool write)
+        :param split_cmd: True if separate commands are needed (currently only
+            implemented for bool write)
         :param query_keywords: additional query keywords for this command
         :param write_keywords: additional write keywords for this command
         """

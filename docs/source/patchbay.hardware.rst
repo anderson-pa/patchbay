@@ -1,6 +1,16 @@
 patchbay.hardware package
 =========================
 
+Subpackages
+-----------
+
+.. toctree::
+
+    patchbay.hardware.agilent
+    patchbay.hardware.hp
+    patchbay.hardware.magnapower
+    patchbay.hardware.tektronix
+
 Submodules
 ----------
 
