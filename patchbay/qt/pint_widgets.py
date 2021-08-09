@@ -8,7 +8,7 @@ class PQSpinBox(QSpinBox):
     def __init__(self, unit:pint.unit):
         super().__init__()
         self.unit = unit
-        self.setSuffix(f' {unit:~P}')
+        self.setSuffix('')
         self.setAlignment(Qt.AlignRight)
 
     def setValue(self, val:pint.quantity):
@@ -17,13 +17,16 @@ class PQSpinBox(QSpinBox):
     def value(self) -> int:
         return super().value() * self.unit
 
+    def setSuffix(self, suffix:str) -> None:
+        super().setSuffix(f' {self.unit:~P}{suffix}')
+
 
 class PQDoubleSpinBox(QDoubleSpinBox):
     """Units-aware QDoubleSpinBox."""
     def __init__(self, unit:pint.unit):
         super().__init__()
         self.unit = unit
-        self.setSuffix(f' {unit:~P}')
+        self.setSuffix('')
         self.setAlignment(Qt.AlignRight)
 
     def setValue(self, val:pint.quantity):
@@ -31,3 +34,6 @@ class PQDoubleSpinBox(QDoubleSpinBox):
 
     def value(self) -> float:
         return super().value() * self.unit
+
+    def setSuffix(self, suffix:str) -> None:
+        super().setSuffix(f' {self.unit:~P}{suffix}')
