@@ -1,13 +1,16 @@
 import asyncio
 import sys
+import os
 from os.path import dirname
 from pathlib import Path
 
 from pint import UnitRegistry, set_application_registry
 
-__version__ = '0.0.6dev'
+__version__ = '0.0.6.dev1'
 
 loop = asyncio.get_event_loop()
+
+os.environ['QT_API'] = 'PySide2'
 
 ureg = UnitRegistry()
 ureg.define('division = 1 * count = div')
