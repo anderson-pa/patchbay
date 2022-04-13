@@ -14,8 +14,8 @@ class PQSpinBox(QSpinBox):
     def setValue(self, val:pint.quantity):
         super().setValue(val.to(self.unit).magnitude)
 
-    def value(self) -> int:
-        return super().value() * self.unit
+    def value(self) -> pint.quantity:
+        return pint.quantity.Quantity(super().value(), self.unit)
 
     def setSuffix(self, suffix:str) -> None:
         super().setSuffix(f' {self.unit:~P}{suffix}')
@@ -32,8 +32,8 @@ class PQDoubleSpinBox(QDoubleSpinBox):
     def setValue(self, val:pint.quantity):
         super().setValue(val.to(self.unit).magnitude)
 
-    def value(self) -> float:
-        return super().value() * self.unit
+    def value(self) -> pint.quantity:
+        return pint.quantity.Quantity(super().value(), self.unit)
 
     def setSuffix(self, suffix:str) -> None:
         super().setSuffix(f' {self.unit:~P}{suffix}')
