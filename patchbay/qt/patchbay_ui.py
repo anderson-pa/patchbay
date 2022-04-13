@@ -16,6 +16,7 @@ class Patchbay(QMainWindow):
                         for name, connect in [('close', self.close_patch),
                                               ('open', self.open_patch),
                                               ('quit', self.close)]}
+        self.menus = {}
         self.toolbar = None
 
         # initialize the UI
@@ -37,6 +38,25 @@ class Patchbay(QMainWindow):
             file_menu.addAction(self.actions[item])
 
         help_menu = menubar.addMenu('&Help')
+
+        self.menus['file'] = file_menu
+        self.menus['help'] = help_menu
+
+    def add_patch_menus(self):
+        for menu, items in self.patch.menus.items():
+            if menu in self.menus:
+                m = self.menus[menu]
+            else:
+                m = self.menuBar().addMenu(menu)
+                self.menus[menu] = m
+
+            for item in items:
+                m.addAction(item(self))
+
+    def remove_patch_menus(self):
+        self.menus = {}
+        self.menuBar().clear()
+        self.create_menubar()
 
     def create_statusbar(self):
         """Create the patchbay status bar."""
@@ -86,7 +106,8 @@ class Patchbay(QMainWindow):
 
             self.setCentralWidget(self.patch.ui)
             self.setWindowTitle(self.patch.title)
-            self.actions['close'].setDisabled(False)
+            self.add_patch_menus()
+            self.actions['close'].setEnabled(True)
 
     def close_patch(self):
         """Close the current patch."""
@@ -96,4 +117,5 @@ class Patchbay(QMainWindow):
 
         self.setCentralWidget(QFrame())
         self.setWindowTitle('patchbay')
+        self.remove_patch_menus()
         self.actions['close'].setDisabled(True)
