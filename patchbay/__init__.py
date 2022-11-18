@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pint import UnitRegistry, set_application_registry
 
-__version__ = '0.0.6.dev1'
+__version__ = '0.0.6.dev4'
 
 loop = asyncio.get_event_loop()
 
@@ -52,9 +52,9 @@ def launch_gui(filename=None):
         failed_requirements.append('PySide2')
 
     try:
-        from asyncqt import QEventLoop
+        from qasync import QEventLoop
     except ModuleNotFoundError:
-        failed_requirements.append('asyncqt')
+        failed_requirements.append('qasync')
 
     if failed_requirements:
         for package in failed_requirements:

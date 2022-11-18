@@ -1,4 +1,4 @@
-asyncqt
+qasync
 click
 matplotlib
 mock
