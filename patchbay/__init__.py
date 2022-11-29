@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pint import UnitRegistry, set_application_registry
 
-__version__ = '0.0.6.dev4'
+__version__ = '0.0.6'
 
 loop = asyncio.get_event_loop()
 
